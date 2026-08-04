@@ -16,6 +16,9 @@ echo.
 echo   Windows will ask whether to allow Python through the firewall.
 echo   Tick "Private networks" and allow it, or your phone cannot connect.
 echo.
+echo   If the phone still cannot connect, opening TCP port 8787 usually
+echo   fixes it. See the troubleshooting part of README.md.
+echo.
 
 rem The Python detection lives in start.bat; %* is forwarded to svwb.py.
 call "%~dp0start.bat" --host 0.0.0.0
