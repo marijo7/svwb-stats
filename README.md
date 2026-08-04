@@ -54,7 +54,7 @@ python3 svwb.py stats --json                # JSON で出す
 | `opp_deck` | | 相手のデッキ名 |
 | `turn` | ○ | `first` (先攻) / `second` (後攻) |
 | `result` | ○ | `win` / `loss` |
-| `rank` | | ランク帯 (`AA2`, `Master`, `Grand Master`) |
+| `rank` | | ランク帯 (`Master` / `Grand Master`) |
 | `grade` | | CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
 | `note` | | メモ |
 
@@ -77,13 +77,15 @@ python3 svwb.py stats --json                # JSON で出す
 ```json
 {
   "classes": ["エルフ", "ロイヤル", "ウィッチ", "ドラゴン", "ナイトメア", "ビショップ", "ネメシス"],
-  "ranks": ["Beginner", "D0", "…", "Master", "Grand Master"],
+  "ranks": ["Master", "Grand Master"],
   "grade_rank": "Grand Master",
   "grades": ["EPIC未満", "EPIC", "ULTIMATE", "LEGEND", "BEYOND"]
 }
 ```
 
 新クラスが実装されたら `classes` に足す。過去の戦績に `config.json` へ無いクラスが入っていても、集計マトリクスには行 / 列として残るので古いデータが消えることはない。
+
+`ranks` は Master / Grand Master のみ。それ以下の帯 (A / AA など) を記録したくなったら `ranks` に足す。ここに無いランクは新規記録・編集のときに弾かれるが、すでに保存済みの戦績はそのまま残り、履歴にも表示される (その行を編集しようとしたときだけランクの選び直しが必要になる)。
 
 ### グレードについて
 

@@ -49,7 +49,7 @@ class TestConfig(unittest.TestCase):
         self.assertIn("ナイトメア", config["classes"])
         # Worlds Beyond でネクロマンサー / ヴァンパイアはナイトメアに統合された。
         self.assertNotIn("ネクロマンサー", config["classes"])
-        self.assertIn("Grand Master", config["ranks"])
+        self.assertEqual(config["ranks"], ["Master", "Grand Master"])
         self.assertEqual(config["grade_rank"], "Grand Master")
         self.assertEqual(config["grades"],
                          ["EPIC未満", "EPIC", "ULTIMATE", "LEGEND", "BEYOND"])
