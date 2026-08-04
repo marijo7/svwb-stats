@@ -36,6 +36,7 @@ def make_record(**overrides):
         "result": "win",
         "rank": "",
         "grade": "",
+        "cr": None,
         "note": "",
     }
     record.update(overrides)
@@ -135,6 +136,45 @@ class TestValidation(unittest.TestCase):
             with self.subTest(rank=rank):
                 record = svwb.validate_record(make_record(rank=rank, grade=""), CONFIG)
                 self.assertEqual(record["grade"], "")
+
+    def test_cr_is_accepted_at_grand_master(self):
+        record = svwb.validate_record(make_record(rank="Grand Master", cr=1520), CONFIG)
+        self.assertEqual(record["cr"], 1520)
+
+    def test_cr_accepts_numeric_strings_from_the_form(self):
+        # <input type="number"> は文字列で送られてくる。
+        record = svwb.validate_record(make_record(rank="Grand Master", cr="1500"), CONFIG)
+        self.assertEqual(record["cr"], 1500)
+
+    def test_cr_defaults_to_none(self):
+        for empty in (None, ""):
+            with self.subTest(empty=empty):
+                self.assertIsNone(svwb.validate_record(make_record(cr=empty), CONFIG)["cr"])
+        payload = {"my_class": "エルフ", "opp_class": "ロイヤル", "turn": "first", "result": "win"}
+        self.assertIsNone(svwb.validate_record(payload, CONFIG)["cr"])
+
+    def test_rejects_non_integer_cr(self):
+        for bad in ("abc", "15.5", [], True):
+            with self.subTest(bad=bad), self.assertRaises(svwb.ValidationError) as ctx:
+                svwb.validate_record(make_record(rank="Grand Master", cr=bad), CONFIG)
+            self.assertIn("cr", ctx.exception.errors)
+
+    def test_rejects_out_of_range_cr(self):
+        for bad in (-1, svwb.MAX_CR + 1):
+            with self.subTest(bad=bad), self.assertRaises(svwb.ValidationError) as ctx:
+                svwb.validate_record(make_record(rank="Grand Master", cr=bad), CONFIG)
+            self.assertIn("cr", ctx.exception.errors)
+
+    def test_rejects_cr_below_grand_master(self):
+        for rank in ("", "Master"):
+            with self.subTest(rank=rank), self.assertRaises(svwb.ValidationError) as ctx:
+                svwb.validate_record(make_record(rank=rank, cr=1500), CONFIG)
+            self.assertIn("cr", ctx.exception.errors)
+
+    def test_cr_zero_is_valid(self):
+        # 0 は「未入力」ではなく有効な値として通す。
+        self.assertEqual(
+            svwb.validate_record(make_record(rank="Grand Master", cr=0), CONFIG)["cr"], 0)
 
     def test_grade_rank_coupling_is_optional(self):
         # grade_rank が空の config ではランクとの結び付けを行わない。
@@ -348,6 +388,38 @@ class TestStats(unittest.TestCase):
     def test_grade_breakdown_is_empty_without_grades(self):
         # グラマス未到達なら空。UI 側はこれを見てセクションごと隠す。
         self.assertEqual(svwb.compute_stats(self.records, self.classes)["by_grade"], [])
+
+    def test_cr_summary(self):
+        records = [
+            make_record(played_at="2026-08-01", rank="Grand Master", cr=1500),
+            make_record(played_at="2026-08-02", rank="Grand Master", cr=1580),
+            make_record(played_at="2026-08-03", rank="Grand Master", cr=1455),
+            make_record(played_at="2026-08-04", rank="Grand Master", cr=1530),
+        ]
+        cr = svwb.compute_stats(records, self.classes)["cr"]
+        self.assertEqual(cr, {"games": 4, "first": 1500, "latest": 1530,
+                              "delta": 30, "min": 1455, "max": 1580})
+
+    def test_cr_summary_ignores_records_without_cr(self):
+        records = [
+            make_record(played_at="2026-08-01", rank="Master"),
+            make_record(played_at="2026-08-02", rank="Grand Master", cr=1600),
+            make_record(played_at="2026-08-03", rank="Master"),
+        ]
+        cr = svwb.compute_stats(records, self.classes)["cr"]
+        self.assertEqual(cr["games"], 1)
+        self.assertEqual(cr["delta"], 0)
+
+    def test_cr_summary_is_none_without_any_cr(self):
+        # UI 側はこれを見て CR 行ごと隠す。
+        self.assertIsNone(svwb.compute_stats(self.records, self.classes)["cr"])
+
+    def test_cr_delta_can_be_negative(self):
+        records = [
+            make_record(played_at="2026-08-01", rank="Grand Master", cr=1700),
+            make_record(played_at="2026-08-02", rank="Grand Master", cr=1620),
+        ]
+        self.assertEqual(svwb.compute_stats(records, self.classes)["cr"]["delta"], -80)
 
     def test_opponent_class_breakdown(self):
         rows = svwb.compute_stats(self.records, self.classes)["by_opp_class"]
