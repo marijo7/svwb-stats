@@ -20,7 +20,7 @@ import svwb  # noqa: E402
 CONFIG = {
     "classes": ["エルフ", "ロイヤル", "ウィッチ", "ドラゴン", "ナイトメア", "ビショップ", "ネメシス"],
     "ranks": ["A0", "AA0", "Master", "Grand Master"],
-    "grades": ["EPIC", "ULTIMATE"],
+    "grades": ["EPIC未満", "EPIC", "ULTIMATE", "LEGEND", "BEYOND"],
     "grade_rank": "Grand Master",
 }
 
@@ -51,7 +51,8 @@ class TestConfig(unittest.TestCase):
         self.assertNotIn("ネクロマンサー", config["classes"])
         self.assertIn("Grand Master", config["ranks"])
         self.assertEqual(config["grade_rank"], "Grand Master")
-        self.assertIn("EPIC", config["grades"])
+        self.assertEqual(config["grades"],
+                         ["EPIC未満", "EPIC", "ULTIMATE", "LEGEND", "BEYOND"])
 
     def test_grade_rank_must_exist_in_ranks(self):
         # config を書き換えたときに typo で結び付けが黙って外れないようにする。
@@ -319,11 +320,30 @@ class TestStats(unittest.TestCase):
             make_record(rank="Grand Master", grade="ULTIMATE", result="win"),
             make_record(rank="AA0", grade="", result="win"),
         ]
-        rows = svwb.compute_stats(records, self.classes)["by_grade"]
+        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_grade"]
         by_key = {row["key"]: row for row in rows}
         self.assertEqual(set(by_key), {"EPIC", "ULTIMATE"})
         self.assertEqual(by_key["EPIC"], {"key": "EPIC", "games": 2, "wins": 1,
                                           "losses": 1, "winrate": 0.5})
+
+    def test_grade_breakdown_follows_the_ladder_not_game_count(self):
+        # 試合数順に並べると BEYOND が EPIC未満 の上に来たり下に来たりして
+        # 梯子として読めない。config の並び順を維持する。
+        records = ([make_record(rank="Grand Master", grade="ULTIMATE")] * 5
+                   + [make_record(rank="Grand Master", grade="EPIC未満")]
+                   + [make_record(rank="Grand Master", grade="BEYOND")] * 3
+                   + [make_record(rank="Grand Master", grade="EPIC")] * 2)
+        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_grade"]
+        self.assertEqual([row["key"] for row in rows],
+                         ["EPIC未満", "EPIC", "ULTIMATE", "BEYOND"])
+
+    def test_grade_breakdown_keeps_unknown_grades_at_the_end(self):
+        records = [
+            make_record(rank="Grand Master", grade="MYTHIC"),
+            make_record(rank="Grand Master", grade="EPIC"),
+        ]
+        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_grade"]
+        self.assertEqual([row["key"] for row in rows], ["EPIC", "MYTHIC"])
 
     def test_grade_breakdown_is_empty_without_grades(self):
         # グラマス未到達なら空。UI 側はこれを見てセクションごと隠す。

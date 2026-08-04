@@ -55,7 +55,7 @@ python3 svwb.py stats --json                # JSON で出す
 | `turn` | ○ | `first` (先攻) / `second` (後攻) |
 | `result` | ○ | `win` / `loss` |
 | `rank` | | ランク帯 (`AA2`, `Master`, `Grand Master`) |
-| `grade` | | CR グレード (`EPIC` 等)。`rank` が `Grand Master` のときだけ入力できる |
+| `grade` | | CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
 | `note` | | メモ |
 
 連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・グレード・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
@@ -79,7 +79,7 @@ python3 svwb.py stats --json                # JSON で出す
   "classes": ["エルフ", "ロイヤル", "ウィッチ", "ドラゴン", "ナイトメア", "ビショップ", "ネメシス"],
   "ranks": ["Beginner", "D0", "…", "Master", "Grand Master"],
   "grade_rank": "Grand Master",
-  "grades": ["EPIC", "ULTIMATE"]
+  "grades": ["EPIC未満", "EPIC", "ULTIMATE", "LEGEND", "BEYOND"]
 }
 ```
 
@@ -89,7 +89,9 @@ python3 svwb.py stats --json                # JSON で出す
 
 CR (クラス別レーティング) のグレードはグラマス昇格後にしか存在しないため、`grade_rank` で指定したランクのときだけ入力できる。UI では他のランクを選んでいる間グレード欄が無効になり、サーバー側でも同じ条件で弾く。`grade_rank` を空文字にすると、この結び付けを行わない。
 
-**`grades` の中身は要確認。** 現在は `EPIC` / `ULTIMATE` の 2 つだけ入っている。ゲーム内の Master's Menu の CR 一覧に載っている正式なグレード名を、上位から順に並べて置き換えること。並び順はそのまま選択肢の表示順になる (集計側は試合数順に並ぶので順序に依存しない)。
+グレードは下から `EPIC未満` → `EPIC` → `ULTIMATE` → `LEGEND` → `BEYOND` の 5 段階。`grades` の並び順はそのまま選択肢の表示順になる (集計は試合数の多い順に並ぶので、順序には依存しない)。
+
+`EPIC未満` は「グラマスではあるがまだ EPIC に届いていない」帯を表す明示的な選択肢。**グレード欄を空のままにするのとは意味が違う** — 空欄は「グレードを記録していない」であって「EPIC 未満だった」ではない。集計の「CR グレード別」には、グレードを選んだ戦績だけが載る。
 
 ## データ
 

@@ -283,7 +283,14 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
     return out
 
 
-def compute_stats(records: list[dict], classes: list[str]) -> dict:
+def _order_by(rows: list[dict], order: list[str]) -> list[dict]:
+    """rows を指定の並び (梯子順) に並べ替える。order に無いキーは末尾へ。"""
+    rank = {key: i for i, key in enumerate(order)}
+    return sorted(rows, key=lambda row: (rank.get(row["key"], len(rank)), row["key"]))
+
+
+def compute_stats(records: list[dict], classes: list[str],
+                  grades: list[str] | None = None) -> dict:
     """全体 / 先後別 / クラス対面マトリクス / デッキ別の勝率をまとめて返す。
 
     マトリクスは config のクラス順に全マスを作る。0 戦のマスも「まだ当たって
@@ -324,7 +331,10 @@ def compute_stats(records: list[dict], classes: list[str]) -> dict:
         "by_my_deck": _breakdown(records, "my_deck"),
         # グレードは Grand Master 帯でしか付かないので、未設定しか無い場合は
         # 行を出さない (グラマス未到達のユーザーに空の表を見せない)。
-        "by_grade": _breakdown([r for r in records if r.get("grade")], "grade"),
+        # 他の内訳と違い試合数順ではなく config の梯子順で並べる。EPIC未満 →
+        # BEYOND という順序自体が読む側の求める情報なので。
+        "by_grade": _order_by(
+            _breakdown([r for r in records if r.get("grade")], "grade"), grades or []),
     }
 
 
@@ -403,7 +413,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, {"records": records})
             elif path == "/api/stats":
                 records = filter_records(self.store.list(), **self._query_filters(query))
-                self._send_json(200, compute_stats(records, self.config["classes"]))
+                self._send_json(200, compute_stats(
+                    records, self.config["classes"], self.config.get("grades")))
             elif path.startswith("/api/"):
                 self._send_json(404, {"error": "不明なエンドポイントです"})
             else:
@@ -517,7 +528,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         my_class=args.my_class or "", my_deck=args.my_deck or "",
         opp_class=args.opp_class or "", grade=args.grade or "",
     )
-    stats = compute_stats(records, config["classes"])
+    stats = compute_stats(records, config["classes"], config["grades"])
 
     if args.json:
         print(json.dumps(stats, ensure_ascii=False, indent=2))
