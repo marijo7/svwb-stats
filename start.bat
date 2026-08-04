@@ -34,7 +34,8 @@ if not defined PY (
 
 echo Starting svwb-stats. Close this window ^(or press Ctrl-C^) to stop.
 echo.
-%PY% svwb.py serve --open
+rem %* passes through anything start-lan.bat added (it calls this file).
+%PY% svwb.py serve --open %*
 echo.
 echo Server stopped.
 pause
