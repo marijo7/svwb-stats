@@ -213,11 +213,19 @@ function renderBreakdown(tableId, rows, keyLabel) {
 function syncGradeField() {
   const select = $("field-grade");
   const { grades, grade_rank: gradeRank } = state.config;
-  const active = grades.length > 0 && (!gradeRank || $("field-rank").value === gradeRank);
+  const atGradeRank = !gradeRank || $("field-rank").value === gradeRank;
+  const active = grades.length > 0 && atGradeRank;
   select.disabled = !active;
   if (!active) select.value = "";
   $("grade-hint").textContent = grades.length === 0 ? "未設定"
     : active ? "任意" : `${gradeRank} のみ`;
+
+  // CR もグラマス帯のみ。グレードと違い config の一覧に依存しないので、
+  // ランクの条件だけで判定する。
+  const cr = $("field-cr");
+  cr.disabled = !atGradeRank;
+  if (!atGradeRank) cr.value = "";
+  $("cr-hint").textContent = atGradeRank ? "任意" : `${gradeRank} のみ`;
 }
 
 function renderStats(stats) {
@@ -241,6 +249,38 @@ function renderStats(stats) {
   const grades = stats.by_grade || [];
   $("grade-section").hidden = grades.length === 0;
   if (grades.length) renderBreakdown("by-grade", grades, "グレード");
+
+  renderCr(stats.cr);
+}
+
+/** CR の推移要約。CR を記録した戦績が無ければ行ごと隠す。 */
+function renderCr(cr) {
+  $("cr-row").hidden = !cr;
+  if (!cr) return;
+  const sign = cr.delta > 0 ? "+" : "";
+  $("cr-row").replaceChildren(
+    el("div", { class: "stat" }, [
+      el("div", { class: "label", text: "現在 CR" }),
+      el("div", { class: "value", text: String(cr.latest) }),
+      el("div", { class: "detail" }, [
+        el("span", {
+          class: cr.delta > 0 ? "delta-up" : cr.delta < 0 ? "delta-down" : "",
+          text: `${sign}${cr.delta}`,
+        }),
+        document.createTextNode(` / ${cr.games} 戦`),
+      ]),
+    ]),
+    el("div", { class: "stat" }, [
+      el("div", { class: "label", text: "最高 CR" }),
+      el("div", { class: "value", text: String(cr.max) }),
+      el("div", { class: "detail", text: `最低 ${cr.min}` }),
+    ]),
+    el("div", { class: "stat" }, [
+      el("div", { class: "label", text: "期間の始点" }),
+      el("div", { class: "value", text: String(cr.first) }),
+      el("div", { class: "detail", text: "絞り込み範囲の最初の記録" }),
+    ]),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -253,13 +293,13 @@ function renderLog(records) {
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "メモ", ""].map(
+    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "CR", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
   if (!records.length) {
     table.appendChild(el("tbody", {}, [
-      el("tr", {}, [el("td", { colspan: "9", class: "empty-cell", text: "まだ戦績がありません。" })]),
+      el("tr", {}, [el("td", { colspan: "10", class: "empty-cell", text: "まだ戦績がありません。" })]),
     ]));
     return;
   }
@@ -279,6 +319,7 @@ function renderLog(records) {
       el("td", { class: record.result, text: RESULT_LABEL[record.result] || "" }),
       el("td", { text: record.rank || "" }),
       el("td", { text: record.grade || "" }),
+      el("td", { text: record.cr === null || record.cr === undefined ? "" : String(record.cr) }),
       el("td", { class: "note", title: record.note || "", text: record.note || "" }),
       el("td", {}, [
         el("button", { class: "link", type: "button", text: "編集", onclick: () => startEdit(record) }),
@@ -308,7 +349,7 @@ function showFormError(message, fields = {}) {
   const box = $("form-error");
   box.hidden = !message;
   box.textContent = message || "";
-  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "grade", "note"]) {
+  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "grade", "cr", "note"]) {
     $(`field-${name}`).classList.toggle("invalid", Boolean(fields[name]));
   }
   if (Object.keys(fields).length) {
@@ -324,6 +365,7 @@ function startEdit(record) {
   $("field-rank").value = record.rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
   $("field-grade").value = record.grade || "";
+  $("field-cr").value = record.cr === null || record.cr === undefined ? "" : record.cr;
   $("field-my_class").value = record.my_class || "";
   $("field-my_deck").value = record.my_deck || "";
   $("field-opp_class").value = record.opp_class || "";
