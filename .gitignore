@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+
+# 書き込み中の一時ファイル (RecordStore が rename する前の中間ファイル)
+data/*.jsonl.tmp

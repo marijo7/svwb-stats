@@ -1,0 +1,565 @@
+#!/usr/bin/env python3
+"""svwb-stats — Shadowverse: Worlds Beyond の戦績管理ツール。
+
+ブラウザから戦績を入力し、勝率を集計する。標準ライブラリのみで動作する。
+
+    python3 svwb.py serve            # http://127.0.0.1:8787 を開く
+    python3 svwb.py stats            # 集計をターミナルに出す
+    python3 svwb.py stats --json     # 集計を JSON で出す
+
+戦績は JSONL (1 行 1 試合) として data/records.jsonl に追記される。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+import threading
+import unicodedata
+import uuid
+import webbrowser
+from datetime import date, datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
+
+ROOT = Path(__file__).resolve().parent
+WEB_DIR = ROOT / "web"
+CONFIG_PATH = ROOT / "config.json"
+DEFAULT_DATA_PATH = ROOT / "data" / "records.jsonl"
+
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TURNS = ("first", "second")
+RESULTS = ("win", "loss")
+
+#: 入力を受け付ける自由記述フィールドの最大長。
+MAX_TEXT = 120
+MAX_NOTE = 1000
+
+
+# --------------------------------------------------------------------------
+# 設定
+# --------------------------------------------------------------------------
+
+def load_config(path: Path = CONFIG_PATH) -> dict:
+    """クラス / ランクの一覧を読む。
+
+    クラスやランクが増えたら config.json を編集するだけで UI と検証に反映される。
+    """
+    with path.open(encoding="utf-8") as fp:
+        config = json.load(fp)
+    classes = [str(c) for c in config.get("classes", [])]
+    ranks = [str(r) for r in config.get("ranks", [])]
+    if not classes:
+        raise ValueError(f"{path}: classes が空です")
+    return {"classes": classes, "ranks": ranks}
+
+
+# --------------------------------------------------------------------------
+# 検証
+# --------------------------------------------------------------------------
+
+class ValidationError(ValueError):
+    """入力エラー。まとめて返せるようにフィールド単位のメッセージを持つ。"""
+
+    def __init__(self, errors: dict[str, str]) -> None:
+        super().__init__("; ".join(f"{k}: {v}" for k, v in errors.items()))
+        self.errors = errors
+
+
+def _text(value, field: str, limit: int, errors: dict[str, str]) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        errors[field] = "文字列で指定してください"
+        return ""
+    value = value.strip()
+    if len(value) > limit:
+        errors[field] = f"{limit} 文字以内で指定してください"
+    return value
+
+
+def validate_record(payload: dict, config: dict) -> dict:
+    """API から受け取った 1 試合分の入力を検証して正規化する。
+
+    未知のキーは落とす。id / created_at はサーバー側で採番するため入力を無視する。
+    """
+    if not isinstance(payload, dict):
+        raise ValidationError({"_": "オブジェクトを送ってください"})
+
+    errors: dict[str, str] = {}
+    record: dict = {}
+
+    played_at = payload.get("played_at") or date.today().isoformat()
+    if not isinstance(played_at, str) or not DATE_RE.match(played_at):
+        errors["played_at"] = "YYYY-MM-DD 形式で指定してください"
+    else:
+        try:
+            date.fromisoformat(played_at)
+        except ValueError:
+            errors["played_at"] = "存在しない日付です"
+    record["played_at"] = played_at
+
+    for field in ("my_class", "opp_class"):
+        value = payload.get(field)
+        if value not in config["classes"]:
+            errors[field] = "クラスを選択してください"
+        record[field] = value if isinstance(value, str) else ""
+
+    for field, limit in (("my_deck", MAX_TEXT), ("opp_deck", MAX_TEXT), ("note", MAX_NOTE)):
+        record[field] = _text(payload.get(field), field, limit, errors)
+
+    turn = payload.get("turn")
+    if turn not in TURNS:
+        errors["turn"] = "先攻 / 後攻 を選択してください"
+    record["turn"] = turn if turn in TURNS else ""
+
+    result = payload.get("result")
+    if result not in RESULTS:
+        errors["result"] = "勝ち / 負け を選択してください"
+    record["result"] = result if result in RESULTS else ""
+
+    rank = payload.get("rank") or ""
+    if rank and rank not in config["ranks"]:
+        errors["rank"] = "ランクの選択肢にありません"
+    record["rank"] = rank if isinstance(rank, str) else ""
+
+    if errors:
+        raise ValidationError(errors)
+    return record
+
+
+# --------------------------------------------------------------------------
+# 永続化
+# --------------------------------------------------------------------------
+
+class RecordStore:
+    """JSONL ファイルを 1 行 1 試合として読み書きする。
+
+    追加は追記のみ。更新 / 削除のときだけ全体を書き直す。行単位なので
+    git の差分がそのまま「その日足した試合」になる。
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._lock = threading.Lock()
+
+    def _read_all(self) -> list[dict]:
+        if not self.path.exists():
+            return []
+        records = []
+        with self.path.open(encoding="utf-8") as fp:
+            for lineno, line in enumerate(fp, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"{self.path}:{lineno} が壊れています: {exc}") from exc
+        return records
+
+    def _write_all(self, records: list[dict]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        with tmp.open("w", encoding="utf-8") as fp:
+            for record in records:
+                fp.write(json.dumps(record, ensure_ascii=False) + "\n")
+        tmp.replace(self.path)
+
+    def list(self) -> list[dict]:
+        with self._lock:
+            records = self._read_all()
+        records.sort(key=lambda r: (r.get("played_at", ""), r.get("created_at", "")))
+        return records
+
+    def add(self, record: dict) -> dict:
+        record = dict(record)
+        record["id"] = uuid.uuid4().hex
+        record["created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as fp:
+                fp.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return record
+
+    def update(self, record_id: str, fields: dict) -> dict | None:
+        with self._lock:
+            records = self._read_all()
+            updated = None
+            for record in records:
+                if record.get("id") == record_id:
+                    record.update(fields)
+                    record["id"] = record_id
+                    updated = record
+                    break
+            if updated is None:
+                return None
+            self._write_all(records)
+        return updated
+
+    def delete(self, record_id: str) -> bool:
+        with self._lock:
+            records = self._read_all()
+            remaining = [r for r in records if r.get("id") != record_id]
+            if len(remaining) == len(records):
+                return False
+            self._write_all(remaining)
+        return True
+
+
+# --------------------------------------------------------------------------
+# 集計
+# --------------------------------------------------------------------------
+
+def _rate(wins: int, games: int) -> float:
+    return wins / games if games else 0.0
+
+
+def _tally(records: list[dict]) -> dict:
+    wins = sum(1 for r in records if r.get("result") == "win")
+    games = len(records)
+    return {"games": games, "wins": wins, "losses": games - wins, "winrate": _rate(wins, games)}
+
+
+def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)") -> list[dict]:
+    """key ごとに集計し、試合数の多い順に並べて返す。"""
+    buckets: dict[str, list[dict]] = {}
+    for record in records:
+        buckets.setdefault(record.get(key) or fallback, []).append(record)
+    rows = [{"key": name, **_tally(rs)} for name, rs in buckets.items()]
+    rows.sort(key=lambda row: (-row["games"], row["key"]))
+    return rows
+
+
+def filter_records(records: list[dict], since: str = "", until: str = "",
+                   my_class: str = "", my_deck: str = "", opp_class: str = "") -> list[dict]:
+    """期間 / クラス / デッキで絞り込む。空文字の条件は無視する。"""
+    out = []
+    for record in records:
+        played_at = record.get("played_at", "")
+        if since and played_at < since:
+            continue
+        if until and played_at > until:
+            continue
+        if my_class and record.get("my_class") != my_class:
+            continue
+        if my_deck and (record.get("my_deck") or "") != my_deck:
+            continue
+        if opp_class and record.get("opp_class") != opp_class:
+            continue
+        out.append(record)
+    return out
+
+
+def compute_stats(records: list[dict], classes: list[str]) -> dict:
+    """全体 / 先後別 / クラス対面マトリクス / デッキ別の勝率をまとめて返す。
+
+    マトリクスは config のクラス順に全マスを作る。0 戦のマスも「まだ当たって
+    いない」という情報なので落とさない。config に無いクラス (旧データなど) が
+    出てきた場合は行 / 列を後ろに足す。
+    """
+    order = list(classes)
+    for record in records:
+        for field in ("my_class", "opp_class"):
+            value = record.get(field)
+            if value and value not in order:
+                order.append(value)
+
+    matrix = {mine: {opp: {"games": 0, "wins": 0, "losses": 0, "winrate": 0.0}
+                     for opp in order}
+              for mine in order}
+    for record in records:
+        mine, opp = record.get("my_class"), record.get("opp_class")
+        if mine not in matrix or opp not in matrix[mine]:
+            continue
+        cell = matrix[mine][opp]
+        cell["games"] += 1
+        if record.get("result") == "win":
+            cell["wins"] += 1
+    for row in matrix.values():
+        for cell in row.values():
+            cell["losses"] = cell["games"] - cell["wins"]
+            cell["winrate"] = _rate(cell["wins"], cell["games"])
+
+    return {
+        "classes": order,
+        "overall": _tally(records),
+        "turn_order": {turn: _tally([r for r in records if r.get("turn") == turn])
+                       for turn in TURNS},
+        "matchup_matrix": matrix,
+        "by_my_class": _breakdown(records, "my_class"),
+        "by_opp_class": _breakdown(records, "opp_class"),
+        "by_my_deck": _breakdown(records, "my_deck"),
+    }
+
+
+# --------------------------------------------------------------------------
+# HTTP サーバー
+# --------------------------------------------------------------------------
+
+CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+}
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "svwb-stats"
+    store: RecordStore
+    config: dict
+
+    # ---- helpers ---------------------------------------------------------
+
+    def _send_json(self, status: int, payload: dict) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            return {}
+        if length > 1_000_000:
+            raise ValidationError({"_": "リクエストが大きすぎます"})
+        try:
+            return json.loads(self.rfile.read(length).decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ValidationError({"_": f"JSON として読めません: {exc}"}) from exc
+
+    def _query_filters(self, query: dict[str, list[str]]) -> dict:
+        return {name: (query.get(name) or [""])[0]
+                for name in ("since", "until", "my_class", "my_deck", "opp_class")}
+
+    def _record_id(self, path: str) -> str:
+        return unquote(path[len("/api/records/"):]).strip("/")
+
+    def _serve_static(self, path: str) -> None:
+        relative = "index.html" if path in ("/", "") else path.lstrip("/")
+        target = (WEB_DIR / relative).resolve()
+        # WEB_DIR の外へ出る参照 (../ など) は配信しない。
+        if not target.is_file() or WEB_DIR.resolve() not in target.parents:
+            self.send_error(404, "Not Found")
+            return
+        body = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", CONTENT_TYPES.get(target.suffix, "application/octet-stream"))
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    # ---- routes ----------------------------------------------------------
+
+    def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler の命名規約)
+        parsed = urlparse(self.path)
+        path, query = parsed.path, parse_qs(parsed.query)
+        try:
+            if path == "/api/config":
+                self._send_json(200, self.config)
+            elif path == "/api/records":
+                records = filter_records(self.store.list(), **self._query_filters(query))
+                self._send_json(200, {"records": records})
+            elif path == "/api/stats":
+                records = filter_records(self.store.list(), **self._query_filters(query))
+                self._send_json(200, compute_stats(records, self.config["classes"]))
+            elif path.startswith("/api/"):
+                self._send_json(404, {"error": "不明なエンドポイントです"})
+            else:
+                self._serve_static(path)
+        except Exception as exc:  # サーバーを落とさずブラウザにエラーを返す
+            self._send_json(500, {"error": str(exc)})
+
+    def do_POST(self) -> None:  # noqa: N802
+        if urlparse(self.path).path != "/api/records":
+            self._send_json(404, {"error": "不明なエンドポイントです"})
+            return
+        try:
+            record = validate_record(self._read_json(), self.config)
+            self._send_json(201, self.store.add(record))
+        except ValidationError as exc:
+            self._send_json(400, {"error": "入力を確認してください", "fields": exc.errors})
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def do_PUT(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        if not path.startswith("/api/records/"):
+            self._send_json(404, {"error": "不明なエンドポイントです"})
+            return
+        try:
+            record = validate_record(self._read_json(), self.config)
+            updated = self.store.update(self._record_id(path), record)
+            if updated is None:
+                self._send_json(404, {"error": "その戦績は見つかりません"})
+            else:
+                self._send_json(200, updated)
+        except ValidationError as exc:
+            self._send_json(400, {"error": "入力を確認してください", "fields": exc.errors})
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        if not path.startswith("/api/records/"):
+            self._send_json(404, {"error": "不明なエンドポイントです"})
+            return
+        try:
+            if self.store.delete(self._record_id(path)):
+                self._send_json(200, {"deleted": True})
+            else:
+                self._send_json(404, {"error": "その戦績は見つかりません"})
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def log_message(self, fmt: str, *args) -> None:
+        sys.stderr.write("%s %s\n" % (self.log_date_time_string(), fmt % args))
+
+
+# --------------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------------
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    config = load_config()
+    store = RecordStore(Path(args.data))
+
+    handler = type("BoundHandler", (Handler,), {"store": store, "config": config})
+    httpd = ThreadingHTTPServer((args.host, args.port), handler)
+    url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
+
+    print(f"svwb-stats: {url}")
+    print(f"戦績ファイル: {store.path}")
+    if args.host == "0.0.0.0":
+        print("LAN 内の他端末 (スマホ等) からも同じ LAN の IP でアクセスできます。")
+    print("停止は Ctrl-C。")
+    if args.open:
+        threading.Timer(0.5, webbrowser.open, args=(url,)).start()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n停止しました。")
+    finally:
+        httpd.server_close()
+    return 0
+
+
+def _display_width(text: str) -> int:
+    """端末上の見た目の桁数。クラス名やデッキ名は全角なので len() では揃わない。"""
+    return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in text)
+
+
+def _pad(text: str, width: int, align: str = "left") -> str:
+    """見た目の桁数で寄せる。width を超える分は切り詰める。"""
+    while _display_width(text) > width:
+        text = text[:-1]
+    space = " " * max(0, width - _display_width(text))
+    return text + space if align == "left" else space + text
+
+
+def _bar(rate: float, width: int = 20) -> str:
+    filled = round(rate * width)
+    return "█" * filled + "·" * (width - filled)
+
+
+def _format_tally(label: str, tally: dict, width: int = 12) -> str:
+    return (f"{_pad(label, width)} {tally['games']:>4}戦 {tally['wins']:>3}勝{tally['losses']:>3}敗  "
+            f"{tally['winrate'] * 100:5.1f}%  {_bar(tally['winrate'])}")
+
+
+def cmd_stats(args: argparse.Namespace) -> int:
+    config = load_config()
+    store = RecordStore(Path(args.data))
+    records = filter_records(
+        store.list(),
+        since=args.since or "", until=args.until or "",
+        my_class=args.my_class or "", my_deck=args.my_deck or "",
+        opp_class=args.opp_class or "",
+    )
+    stats = compute_stats(records, config["classes"])
+
+    if args.json:
+        print(json.dumps(stats, ensure_ascii=False, indent=2))
+        return 0
+
+    if not records:
+        print("条件に合う戦績がありません。")
+        return 0
+
+    print("== 全体 ==")
+    print(_format_tally("全体", stats["overall"]))
+    print()
+
+    print("== 先攻 / 後攻 ==")
+    for turn, label in (("first", "先攻"), ("second", "後攻")):
+        print(_format_tally(label, stats["turn_order"][turn]))
+    print()
+
+    print("== 対面マトリクス (自分クラス × 相手クラス / 勝率・試合数) ==")
+    classes = stats["classes"]
+    matrix = stats["matchup_matrix"]
+    # 使ったクラスだけ行にする。列は「まだ当たっていない相手」も見たいので全部残す。
+    played = [mine for mine in classes if any(matrix[mine][opp]["games"] for opp in classes)]
+
+    label_width = max(_display_width(c) for c in played)
+    cell_width = 11  # 「ナイトメア」等の 5 文字クラス名 (全角 10 桁) + 区切りの 1 桁
+    print(_pad("自分\\相手", label_width) + "".join(_pad(c, cell_width, "right") for c in classes))
+    for mine in played:
+        cells = []
+        for opp in classes:
+            cell = matrix[mine][opp]
+            cells.append("-" if not cell["games"]
+                         else f"{cell['winrate'] * 100:3.0f}% {cell['wins']}-{cell['losses']}")
+        print(_pad(mine, label_width) + "".join(_pad(c, cell_width, "right") for c in cells))
+    print()
+
+    if stats["by_my_deck"] and (len(stats["by_my_deck"]) > 1
+                                or stats["by_my_deck"][0]["key"] != "(未設定)"):
+        print("== 自分デッキ別 ==")
+        width = max(_display_width(row["key"]) for row in stats["by_my_deck"])
+        for row in stats["by_my_deck"]:
+            print(_format_tally(row["key"], row, width))
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="svwb", description="Shadowverse: Worlds Beyond 戦績管理ツール")
+    parser.add_argument("--data", default=str(DEFAULT_DATA_PATH),
+                        help=f"戦績 JSONL のパス (既定: {DEFAULT_DATA_PATH})")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    serve = sub.add_parser("serve", help="ブラウザ用のサーバーを起動する")
+    serve.add_argument("--host", default="127.0.0.1",
+                       help="待ち受けホスト。0.0.0.0 にすると LAN 内から入力できる (既定: 127.0.0.1)")
+    serve.add_argument("--port", type=int, default=8787, help="待ち受けポート (既定: 8787)")
+    serve.add_argument("--open", action="store_true", help="起動後にブラウザを開く")
+    serve.set_defaults(func=cmd_serve)
+
+    stats = sub.add_parser("stats", help="集計を表示する")
+    stats.add_argument("--since", help="この日以降 (YYYY-MM-DD)")
+    stats.add_argument("--until", help="この日以前 (YYYY-MM-DD)")
+    stats.add_argument("--my-class", dest="my_class", help="自分クラスで絞り込む")
+    stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
+    stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
+    stats.add_argument("--json", action="store_true", help="JSON で出力する")
+    stats.set_defaults(func=cmd_stats)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

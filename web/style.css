@@ -1,0 +1,214 @@
+:root {
+  --bg: #10131a;
+  --surface: #181d27;
+  --surface-2: #1f2531;
+  --border: #2c3441;
+  --text: #e6e9ef;
+  --muted: #9aa4b5;
+  --accent: #7c5cff;
+  --accent-soft: #7c5cff33;
+  --win: #3fb950;
+  --loss: #f0603f;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f5f8;
+    --surface: #ffffff;
+    --surface-2: #f0f2f6;
+    --border: #d9dee7;
+    --text: #1b2430;
+    --muted: #5d6a7d;
+    --accent: #5b3ff0;
+    --accent-soft: #5b3ff01f;
+    --win: #1a7f37;
+    --loss: #c4341a;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ---------- header ---------- */
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.topbar h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
+.subtitle { margin: 0; color: var(--muted); font-size: 13px; }
+.topbar-summary { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.topbar-summary strong { color: var(--text); font-size: 17px; }
+
+main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px;
+  display: grid;
+  gap: 18px;
+}
+
+/* ---------- card ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.card h2 { margin: 0 0 14px; font-size: 15px; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+.card h3 { margin: 22px 0 8px; font-size: 14px; }
+.caption { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.count { color: var(--muted); font-weight: normal; text-transform: none; letter-spacing: 0; }
+.empty { color: var(--muted); padding: 12px 0; }
+
+/* ---------- form ---------- */
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 700px) {
+  .grid, .grid-4 { grid-template-columns: 1fr; }
+}
+
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; margin: 0; border: 0; padding: 0; }
+.field > span, .field > legend { font-size: 12px; color: var(--muted); padding: 0; }
+.field em { font-style: normal; opacity: .65; }
+
+input[type="text"], input[type="date"], select, textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+textarea { resize: vertical; }
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.toggle-group { display: flex; flex-direction: column; gap: 5px; }
+.toggles { display: flex; gap: 8px; }
+.toggles label { flex: 1; position: relative; }
+/* 見た目は span 側で作るのでネイティブの radio は隠す。フォーカスは
+   :focus-visible + span で戻すので、キーボード操作は生かしたまま。 */
+.toggles input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.toggles span {
+  display: block;
+  text-align: center;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.toggles input:checked + span { background: var(--accent-soft); border-color: var(--accent); color: var(--text); font-weight: 600; }
+.toggles input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.toggles.result label:first-child input:checked + span { background: color-mix(in srgb, var(--win) 20%, transparent); border-color: var(--win); }
+.toggles.result label:last-child input:checked + span { background: color-mix(in srgb, var(--loss) 20%, transparent); border-color: var(--loss); }
+
+.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.hint { color: var(--muted); font-size: 12px; }
+
+button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover { filter: brightness(1.1); }
+button.link { background: none; border: 0; color: var(--muted); padding: 2px 6px; }
+button.link:hover { color: var(--text); text-decoration: underline; }
+
+.form-error {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--loss) 15%, transparent);
+  border: 1px solid var(--loss);
+  font-size: 13px;
+}
+.invalid { outline: 2px solid var(--loss) !important; }
+
+/* ---------- stats ---------- */
+
+.stat-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.stat {
+  flex: 1 1 160px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.stat .label { color: var(--muted); font-size: 12px; }
+.stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .detail { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+th:first-child, td:first-child { text-align: left; }
+
+.matrix td.cell { border-radius: 4px; }
+.matrix td.empty-cell { color: var(--muted); opacity: .45; }
+.matrix .games { color: var(--muted); font-size: 11px; margin-left: 4px; }
+.matrix tbody th { text-align: left; }
+
+.breakdown .bar {
+  display: inline-block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  vertical-align: middle;
+}
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ---------- log ---------- */
+
+/* 日付・クラス・ランク・メモは文字列なので左寄せ。数値列だけ右寄せのまま。 */
+.log th:nth-child(-n+3), .log td:nth-child(-n+3),
+.log th:nth-child(n+6), .log td:nth-child(n+6) { text-align: left; }
+.log th:nth-child(4), .log td:nth-child(4),
+.log th:nth-child(5), .log td:nth-child(5) { text-align: center; }
+.log .win { color: var(--win); font-weight: 600; }
+.log .loss { color: var(--loss); font-weight: 600; }
+.log .note { color: var(--muted); font-size: 12px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.log tr.editing { background: var(--accent-soft); }
+
+footer {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 8px 20px 40px;
+  display: flex;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+footer a { color: var(--muted); }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
