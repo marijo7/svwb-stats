@@ -54,10 +54,11 @@ python3 svwb.py stats --json                # JSON で出す
 | `opp_deck` | | 相手のデッキ名 |
 | `turn` | ○ | `first` (先攻) / `second` (後攻) |
 | `result` | ○ | `win` / `loss` |
-| `rank` | | ランク帯 (`AA2`, `Master` 等) |
+| `rank` | | ランク帯 (`AA2`, `Master`, `Grand Master`) |
+| `grade` | | CR グレード (`EPIC` 等)。`rank` が `Grand Master` のときだけ入力できる |
 | `note` | | メモ |
 
-連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
+連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・グレード・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
 
 ## 出る集計
 
@@ -65,21 +66,30 @@ python3 svwb.py stats --json                # JSON で出す
 - **先攻・後攻別** — Worlds Beyond で最も効くので常時表示
 - **対面マトリクス** — 自分クラス × 相手クラス の勝率。試合数が少ないマスは色を薄くしてあり、1 戦だけのマスが「得意な対面」に見えないようにしている
 - **自分デッキ別 / 相手クラス別** — 試合数の多い順
+- **CR グレード別** — グレード付きの戦績が 1 件でもあるときだけ表示される
 
-すべて期間・自分クラス・自分デッキで絞り込める。絞り込みは API のクエリ (`/api/stats?since=…`) にもそのまま対応する。
+すべて期間・自分クラス・自分デッキ・グレードで絞り込める。絞り込みは API のクエリ (`/api/stats?since=…&grade=EPIC`) にもそのまま対応する。
 
-## クラス / ランクを増やす
+## クラス / ランク / グレードを増やす
 
 `config.json` を編集するだけで、入力フォームの選択肢と入力検証の両方に反映される。
 
 ```json
 {
   "classes": ["エルフ", "ロイヤル", "ウィッチ", "ドラゴン", "ナイトメア", "ビショップ", "ネメシス"],
-  "ranks": ["Beginner", "D0", "…", "Master", "Grand Master"]
+  "ranks": ["Beginner", "D0", "…", "Master", "Grand Master"],
+  "grade_rank": "Grand Master",
+  "grades": ["EPIC", "ULTIMATE"]
 }
 ```
 
 新クラスが実装されたら `classes` に足す。過去の戦績に `config.json` へ無いクラスが入っていても、集計マトリクスには行 / 列として残るので古いデータが消えることはない。
+
+### グレードについて
+
+CR (クラス別レーティング) のグレードはグラマス昇格後にしか存在しないため、`grade_rank` で指定したランクのときだけ入力できる。UI では他のランクを選んでいる間グレード欄が無効になり、サーバー側でも同じ条件で弾く。`grade_rank` を空文字にすると、この結び付けを行わない。
+
+**`grades` の中身は要確認。** 現在は `EPIC` / `ULTIMATE` の 2 つだけ入っている。ゲーム内の Master's Menu の CR 一覧に載っている正式なグレード名を、上位から順に並べて置き換えること。並び順はそのまま選択肢の表示順になる (集計側は試合数順に並ぶので順序に依存しない)。
 
 ## データ
 
@@ -102,7 +112,7 @@ python3 svwb.py --data /path/to/records.jsonl serve
 | メソッド | パス | 内容 |
 |---|---|---|
 | `GET` | `/api/config` | クラス / ランクの一覧 |
-| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` で絞り込み) |
+| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `grade` で絞り込み) |
 | `POST` | `/api/records` | 追加 |
 | `PUT` | `/api/records/{id}` | 更新 |
 | `DELETE` | `/api/records/{id}` | 削除 |

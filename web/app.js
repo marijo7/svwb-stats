@@ -15,13 +15,16 @@ const TURN_LABEL = { first: "先攻", second: "後攻" };
 const RESULT_LABEL = { win: "勝ち", loss: "負け" };
 
 /** 直近の入力。連戦を記録するとき毎回選び直さずに済むよう引き継ぐ。 */
-const CARRY_FIELDS = ["my_class", "my_deck", "rank"];
+const CARRY_FIELDS = ["my_class", "my_deck", "rank", "grade"];
+
+/** 絞り込みに使う入力欄の id。 */
+const FILTER_IDS = ["filter-since", "filter-until", "filter-my_class", "filter-my_deck", "filter-grade"];
 
 /** 履歴の既定表示件数。 */
 const LOG_PAGE_SIZE = 30;
 
 const state = {
-  config: { classes: [], ranks: [] },
+  config: { classes: [], ranks: [], grades: [], grade_rank: "" },
   records: [],
   stats: null,
   editingId: null,
@@ -49,14 +52,15 @@ async function api(path, options = {}) {
 /** 絞り込み条件を querystring にする。空の条件は送らない。 */
 function filterQuery() {
   const params = new URLSearchParams();
-  const since = $("filter-since").value;
-  const until = $("filter-until").value;
-  const myClass = $("filter-my_class").value;
-  const myDeck = $("filter-my_deck").value;
-  if (since) params.set("since", since);
-  if (until) params.set("until", until);
-  if (myClass) params.set("my_class", myClass);
-  if (myDeck) params.set("my_deck", myDeck);
+  for (const [id, name] of [
+    ["filter-since", "since"],
+    ["filter-until", "until"],
+    ["filter-my_class", "my_class"],
+    ["filter-my_deck", "my_deck"],
+    ["filter-grade", "grade"],
+  ]) {
+    if ($(id).value) params.set(name, $(id).value);
+  }
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -201,6 +205,21 @@ function renderBreakdown(tableId, rows, keyLabel) {
   table.appendChild(body);
 }
 
+/**
+ * グレードは Grand Master 帯でしか付かない。ランクが config の grade_rank と
+ * 一致しないときは選べなくして値も落とす。無効化された select は FormData に
+ * 載らないので、送信される JSON からも自動的に消える。
+ */
+function syncGradeField() {
+  const select = $("field-grade");
+  const { grades, grade_rank: gradeRank } = state.config;
+  const active = grades.length > 0 && (!gradeRank || $("field-rank").value === gradeRank);
+  select.disabled = !active;
+  if (!active) select.value = "";
+  $("grade-hint").textContent = grades.length === 0 ? "未設定"
+    : active ? "任意" : `${gradeRank} のみ`;
+}
+
 function renderStats(stats) {
   const hasData = stats.overall.games > 0;
   $("stats-empty").hidden = hasData;
@@ -217,6 +236,11 @@ function renderStats(stats) {
   renderMatrix(stats);
   renderBreakdown("by-deck", stats.by_my_deck, "デッキ");
   renderBreakdown("by-opp", stats.by_opp_class, "相手クラス");
+
+  // グレード別はグラマス帯の戦績が 1 件でもあるときだけ出す。
+  const grades = stats.by_grade || [];
+  $("grade-section").hidden = grades.length === 0;
+  if (grades.length) renderBreakdown("by-grade", grades, "グレード");
 }
 
 // ---------------------------------------------------------------------------
@@ -229,13 +253,13 @@ function renderLog(records) {
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "メモ", ""].map(
+    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
   if (!records.length) {
     table.appendChild(el("tbody", {}, [
-      el("tr", {}, [el("td", { colspan: "8", class: "empty-cell", text: "まだ戦績がありません。" })]),
+      el("tr", {}, [el("td", { colspan: "9", class: "empty-cell", text: "まだ戦績がありません。" })]),
     ]));
     return;
   }
@@ -254,6 +278,7 @@ function renderLog(records) {
       el("td", { text: TURN_LABEL[record.turn] || "" }),
       el("td", { class: record.result, text: RESULT_LABEL[record.result] || "" }),
       el("td", { text: record.rank || "" }),
+      el("td", { text: record.grade || "" }),
       el("td", { class: "note", title: record.note || "", text: record.note || "" }),
       el("td", {}, [
         el("button", { class: "link", type: "button", text: "編集", onclick: () => startEdit(record) }),
@@ -283,7 +308,7 @@ function showFormError(message, fields = {}) {
   const box = $("form-error");
   box.hidden = !message;
   box.textContent = message || "";
-  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "note"]) {
+  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "grade", "note"]) {
     $(`field-${name}`).classList.toggle("invalid", Boolean(fields[name]));
   }
   if (Object.keys(fields).length) {
@@ -297,6 +322,8 @@ function startEdit(record) {
   $("field-id").value = record.id;
   $("field-played_at").value = record.played_at || "";
   $("field-rank").value = record.rank || "";
+  syncGradeField();                       // ランクを入れてからでないと有効化されない
+  $("field-grade").value = record.grade || "";
   $("field-my_class").value = record.my_class || "";
   $("field-my_deck").value = record.my_deck || "";
   $("field-opp_class").value = record.opp_class || "";
@@ -330,7 +357,13 @@ function resetForNextGame(submitted) {
   const playedAt = submitted.played_at;
   $("entry-form").reset();
   $("field-played_at").value = playedAt;
-  for (const [name, value] of Object.entries(carried)) $(`field-${name}`).value = value;
+  // ランクを戻してからグレードの有効/無効を判定し、そのあとグレードを復元する。
+  for (const [name, value] of Object.entries(carried)) {
+    if (name === "grade") continue;
+    $(`field-${name}`).value = value;
+  }
+  syncGradeField();
+  $("field-grade").value = carried.grade;
   $("field-opp_class").focus();
 }
 
@@ -389,6 +422,7 @@ function describeFilters() {
   if ($("filter-until").value) parts.push(`${$("filter-until").value} 以前`);
   if ($("filter-my_class").value) parts.push($("filter-my_class").value);
   if ($("filter-my_deck").value) parts.push($("filter-my_deck").value);
+  if ($("filter-grade").value) parts.push($("filter-grade").value);
   $("filter-summary").textContent = parts.length ? `適用中: ${parts.join(" / ")}` : "全期間・全クラス";
 }
 
@@ -418,23 +452,27 @@ async function init() {
   replaceOptions($("field-my_class"), state.config.classes, { placeholder: "選択" });
   replaceOptions($("field-opp_class"), state.config.classes, { placeholder: "選択" });
   replaceOptions($("field-rank"), state.config.ranks, { placeholder: "未設定" });
+  replaceOptions($("field-grade"), state.config.grades, { placeholder: "未設定" });
   replaceOptions($("filter-my_class"), state.config.classes, { placeholder: "すべて" });
+  replaceOptions($("filter-grade"), state.config.grades, { placeholder: "すべて" });
+  // グレードが未定義の config なら絞り込み欄ごと出さない。
+  $("filter-grade-field").hidden = state.config.grades.length === 0;
+  syncGradeField();
 
   $("field-played_at").value = new Date().toLocaleDateString("sv-SE"); // ローカル時刻の YYYY-MM-DD
   $("entry-form").addEventListener("submit", submitForm);
+  $("field-rank").addEventListener("change", syncGradeField);
   $("cancel-edit").addEventListener("click", cancelEdit);
   $("log-more").addEventListener("click", () => {
     state.logExpanded = true;
     renderLog(state.records);
   });
 
-  for (const id of ["filter-since", "filter-until", "filter-my_class", "filter-my_deck"]) {
+  for (const id of FILTER_IDS) {
     $(id).addEventListener("change", () => refresh().catch(reportFatal));
   }
   $("filter-reset").addEventListener("click", () => {
-    for (const id of ["filter-since", "filter-until", "filter-my_class", "filter-my_deck"]) {
-      $(id).value = "";
-    }
+    for (const id of FILTER_IDS) $(id).value = "";
     refresh().catch(reportFatal);
   });
 

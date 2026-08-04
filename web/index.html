@@ -21,7 +21,7 @@
       <form id="entry-form" autocomplete="off">
         <input type="hidden" name="id" id="field-id">
 
-        <div class="grid">
+        <div class="grid grid-3">
           <label class="field">
             <span>日付</span>
             <input type="date" name="played_at" id="field-played_at" required>
@@ -30,6 +30,11 @@
           <label class="field">
             <span>ランク <em>任意</em></span>
             <select name="rank" id="field-rank"></select>
+          </label>
+
+          <label class="field">
+            <span>グレード <em id="grade-hint">任意</em></span>
+            <select name="grade" id="field-grade"></select>
           </label>
         </div>
 
@@ -85,7 +90,7 @@
         <div class="actions">
           <button type="submit" class="primary" id="submit-button">記録する</button>
           <button type="button" id="cancel-edit" hidden>編集をやめる</button>
-          <span class="hint">クラス・デッキ・ランクは次の入力に引き継がれます</span>
+          <span class="hint">クラス・デッキ・ランク・グレードは次の入力に引き継がれます</span>
         </div>
       </form>
     </section>
@@ -93,7 +98,7 @@
     <!-- ---------------- 絞り込み ---------------- -->
     <section class="card filters" aria-labelledby="filter-title">
       <h2 id="filter-title">絞り込み</h2>
-      <div class="grid grid-4">
+      <div class="grid grid-5">
         <label class="field">
           <span>開始日</span>
           <input type="date" id="filter-since">
@@ -109,6 +114,10 @@
         <label class="field">
           <span>自分デッキ</span>
           <select id="filter-my_deck"></select>
+        </label>
+        <label class="field" id="filter-grade-field">
+          <span>グレード</span>
+          <select id="filter-grade"></select>
         </label>
       </div>
       <div class="actions">
@@ -139,6 +148,11 @@
             <h3>相手クラス別</h3>
             <div class="table-scroll"><table class="breakdown" id="by-opp"></table></div>
           </div>
+        </div>
+
+        <div id="grade-section" hidden>
+          <h3>CR グレード別</h3>
+          <div class="table-scroll"><table class="breakdown" id="by-grade"></table></div>
         </div>
       </div>
     </section>

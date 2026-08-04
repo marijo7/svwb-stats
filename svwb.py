@@ -54,17 +54,25 @@ MAX_NOTE = 1000
 # --------------------------------------------------------------------------
 
 def load_config(path: Path = CONFIG_PATH) -> dict:
-    """クラス / ランクの一覧を読む。
+    """クラス / ランク / グレードの一覧を読む。
 
-    クラスやランクが増えたら config.json を編集するだけで UI と検証に反映される。
+    増減は config.json を編集するだけで UI と検証の両方に反映される。
+
+    `grade_rank` は「グレードが付くランク」の名前 (Grand Master)。CR グレードは
+    グラマス昇格後にしか存在しないので、この値と一致するランクのときだけ
+    グレードを受け付ける。空にすると結び付けを行わない。
     """
     with path.open(encoding="utf-8") as fp:
         config = json.load(fp)
     classes = [str(c) for c in config.get("classes", [])]
     ranks = [str(r) for r in config.get("ranks", [])]
+    grades = [str(g) for g in config.get("grades", [])]
+    grade_rank = str(config.get("grade_rank", "") or "")
     if not classes:
         raise ValueError(f"{path}: classes が空です")
-    return {"classes": classes, "ranks": ranks}
+    if grade_rank and grade_rank not in ranks:
+        raise ValueError(f"{path}: grade_rank '{grade_rank}' が ranks にありません")
+    return {"classes": classes, "ranks": ranks, "grades": grades, "grade_rank": grade_rank}
 
 
 # --------------------------------------------------------------------------
@@ -135,6 +143,14 @@ def validate_record(payload: dict, config: dict) -> dict:
     if rank and rank not in config["ranks"]:
         errors["rank"] = "ランクの選択肢にありません"
     record["rank"] = rank if isinstance(rank, str) else ""
+
+    grade = payload.get("grade") or ""
+    grade_rank = config.get("grade_rank", "")
+    if grade and grade not in config.get("grades", []):
+        errors["grade"] = "グレードの選択肢にありません"
+    elif grade and grade_rank and record["rank"] != grade_rank:
+        errors["grade"] = f"グレードは {grade_rank} のときだけ記録できます"
+    record["grade"] = grade if isinstance(grade, str) else ""
 
     if errors:
         raise ValidationError(errors)
@@ -245,8 +261,9 @@ def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)") -> 
 
 
 def filter_records(records: list[dict], since: str = "", until: str = "",
-                   my_class: str = "", my_deck: str = "", opp_class: str = "") -> list[dict]:
-    """期間 / クラス / デッキで絞り込む。空文字の条件は無視する。"""
+                   my_class: str = "", my_deck: str = "", opp_class: str = "",
+                   grade: str = "") -> list[dict]:
+    """期間 / クラス / デッキ / グレードで絞り込む。空文字の条件は無視する。"""
     out = []
     for record in records:
         played_at = record.get("played_at", "")
@@ -259,6 +276,8 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
         if my_deck and (record.get("my_deck") or "") != my_deck:
             continue
         if opp_class and record.get("opp_class") != opp_class:
+            continue
+        if grade and (record.get("grade") or "") != grade:
             continue
         out.append(record)
     return out
@@ -303,6 +322,9 @@ def compute_stats(records: list[dict], classes: list[str]) -> dict:
         "by_my_class": _breakdown(records, "my_class"),
         "by_opp_class": _breakdown(records, "opp_class"),
         "by_my_deck": _breakdown(records, "my_deck"),
+        # グレードは Grand Master 帯でしか付かないので、未設定しか無い場合は
+        # 行を出さない (グラマス未到達のユーザーに空の表を見せない)。
+        "by_grade": _breakdown([r for r in records if r.get("grade")], "grade"),
     }
 
 
@@ -348,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _query_filters(self, query: dict[str, list[str]]) -> dict:
         return {name: (query.get(name) or [""])[0]
-                for name in ("since", "until", "my_class", "my_deck", "opp_class")}
+                for name in ("since", "until", "my_class", "my_deck", "opp_class", "grade")}
 
     def _record_id(self, path: str) -> str:
         return unquote(path[len("/api/records/"):]).strip("/")
@@ -493,7 +515,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         store.list(),
         since=args.since or "", until=args.until or "",
         my_class=args.my_class or "", my_deck=args.my_deck or "",
-        opp_class=args.opp_class or "",
+        opp_class=args.opp_class or "", grade=args.grade or "",
     )
     stats = compute_stats(records, config["classes"])
 
@@ -538,6 +560,13 @@ def cmd_stats(args: argparse.Namespace) -> int:
         width = max(_display_width(row["key"]) for row in stats["by_my_deck"])
         for row in stats["by_my_deck"]:
             print(_format_tally(row["key"], row, width))
+        print()
+
+    if stats["by_grade"]:
+        print("== CR グレード別 ==")
+        width = max(_display_width(row["key"]) for row in stats["by_grade"])
+        for row in stats["by_grade"]:
+            print(_format_tally(row["key"], row, width))
     return 0
 
 
@@ -561,6 +590,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--my-class", dest="my_class", help="自分クラスで絞り込む")
     stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
     stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
+    stats.add_argument("--grade", help="CR グレードで絞り込む (EPIC 等)")
     stats.add_argument("--json", action="store_true", help="JSON で出力する")
     stats.set_defaults(func=cmd_stats)
     return parser

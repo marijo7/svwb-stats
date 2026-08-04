@@ -17,5 +17,10 @@
     "AA0", "AA1", "AA2", "AA3",
     "Master",
     "Grand Master"
+  ],
+  "grade_rank": "Grand Master",
+  "grades": [
+    "EPIC",
+    "ULTIMATE"
   ]
 }
