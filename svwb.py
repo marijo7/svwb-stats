@@ -4,6 +4,7 @@
 ブラウザから戦績を入力し、勝率を集計する。標準ライブラリのみで動作する。
 
     python3 svwb.py serve            # http://127.0.0.1:8787 を開く
+    python3 svwb.py serve --host 0.0.0.0   # 同じ LAN のスマホからも入力できるようにする
     python3 svwb.py stats            # 集計をターミナルに出す
     python3 svwb.py stats --json     # 集計を JSON で出す
 
@@ -16,6 +17,7 @@ import argparse
 import json
 import os
 import re
+import socket
 import sys
 import threading
 import unicodedata
@@ -34,6 +36,8 @@ if sys.version_info < (3, 9):
         f"(this is {sys.version.split()[0]}).\n"
         "Windows: install Python 3 from the Microsoft Store, then try again."
     )
+
+import qr  # 同じディレクトリの自作モジュール (LAN 起動時の QR 表示にだけ使う)
 
 ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
@@ -530,6 +534,56 @@ class Handler(BaseHTTPRequestHandler):
 # CLI
 # --------------------------------------------------------------------------
 
+def lan_ip() -> str:
+    """この PC の LAN IP。取れなければ空文字。
+
+    UDP ソケットを「繋ぐ」だけで、パケットは 1 つも出ない。OS が経路表を引いて
+    送信元アドレスを決めるので、既定の経路に使っている NIC の IP が分かる。
+    ホスト名の逆引きだと 127.0.0.1 が返る環境があるため、この方法を使う。
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("192.0.2.1", 9))  # 文書用に予約されたアドレス。実在しなくてよい
+        ip = sock.getsockname()[0]
+    except OSError:
+        return ""
+    finally:
+        sock.close()
+    return "" if ip.startswith("127.") else ip
+
+
+def _ansi_ready() -> bool:
+    """端末が色指定 (ANSI エスケープ) を解せるか。"""
+    if not sys.stdout.isatty():
+        return False
+    if os.name != "nt":
+        return True
+    # Windows 10 以降のコンソールは、明示的に有効化すれば ANSI を解する。
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except Exception:
+        return False
+
+
+def _print_qr(url: str) -> None:
+    """URL の QR を端末に出す。出せない環境では黙って諦める (URL 自体は上に出ている)。"""
+    if not _ansi_ready():
+        return
+    try:
+        print()
+        print(qr.render(qr.encode(url)))
+        print()
+    except (ValueError, UnicodeEncodeError):
+        pass  # URL が長すぎる / 端末が半角ブロックを出せない
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     config = load_config()
     store = RecordStore(Path(args.data))
@@ -541,7 +595,16 @@ def cmd_serve(args: argparse.Namespace) -> int:
     print(f"svwb-stats: {url}")
     print(f"戦績ファイル: {store.path}")
     if args.host == "0.0.0.0":
-        print("LAN 内の他端末 (スマホ等) からも同じ LAN の IP でアクセスできます。")
+        ip = lan_ip()
+        if ip:
+            lan_url = f"http://{ip}:{args.port}"
+            print(f"スマホなど LAN 内の端末からは {lan_url}")
+            if not args.no_qr:
+                _print_qr(lan_url)
+        else:
+            print("LAN 内の端末からも入れますが、この PC の IP を取得できませんでした。")
+            print("Windows は ipconfig、macOS / Linux は ip addr で調べてください。")
+        print("認証は無いので、信頼できるネットワークだけで使ってください。")
     print("停止は Ctrl-C。")
     if args.open:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
@@ -660,6 +723,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="待ち受けホスト。0.0.0.0 にすると LAN 内から入力できる (既定: 127.0.0.1)")
     serve.add_argument("--port", type=int, default=8787, help="待ち受けポート (既定: 8787)")
     serve.add_argument("--open", action="store_true", help="起動後にブラウザを開く")
+    serve.add_argument("--no-qr", dest="no_qr", action="store_true",
+                       help="LAN 起動時に URL の QR コードを表示しない")
     serve.set_defaults(func=cmd_serve)
 
     stats = sub.add_parser("stats", help="集計を表示する")
