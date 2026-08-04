@@ -10,6 +10,19 @@
   --win: #3fb950;
   --loss: #f0603f;
   --radius: 10px;
+
+  /* クラス別円グラフの系列色。config のクラス順に 1 から割り当てる。
+     並び順そのものが見分けやすさの担保で、隣り合う色は色覚特性 (P/D 型) の
+     シミュレーション下でも分離するよう選んである。入れ替えると隣接ペアが
+     崩れるので、色を足すときは末尾に足す。8 クラス目以降は --series-other。 */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #e66767;
+  --series-other: #7f8b9e;
 }
 
 @media (prefers-color-scheme: light) {
@@ -24,6 +37,17 @@
     --accent-soft: #5b3ff01f;
     --win: #1a7f37;
     --loss: #c4341a;
+
+    /* 明るい背景に載せる同じ 7 色。暗い側の値をそのまま使うと沈むので、
+       同じ色相のまま明度を取り直してある。 */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #e34948;
+    --series-other: #6b7686;
   }
 }
 
@@ -200,6 +224,37 @@ th:first-child, td:first-child { text-align: left; }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ---------- クラス別の円グラフ ---------- */
+
+.section-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.section-head h3 { margin-right: auto; }
+/* 見出しの横に置く小さい切り替えなので、フォームのトグルほど幅を取らせない。 */
+.section-head .toggles label { flex: 0 0 auto; }
+.section-head .toggles span { padding: 4px 12px; font-size: 12px; }
+
+.pie-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
+@media (max-width: 700px) { .pie-wrap { grid-template-columns: 1fr; } }
+
+.pie { width: 100%; max-width: 220px; height: auto; display: block; margin: 0 auto; }
+.pie-slice { transition: opacity .12s; }
+/* どれか 1 つに触れている間は他を薄くする。凡例と見比べなくても
+   「今どのクラスを見ているか」が分かる。 */
+.pie:hover .pie-slice { opacity: .4; }
+.pie .pie-slice:hover { opacity: 1; }
+/* 中央の合計はラベルであって的ではない。扇のホバー判定を邪魔しないよう外す。 */
+.pie-total, .pie-total-unit { pointer-events: none; text-anchor: middle; }
+.pie-total { fill: var(--text); font-size: 26px; font-weight: 700; }
+.pie-total-unit { fill: var(--muted); font-size: 11px; }
+
+.pie-legend .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: baseline;
+}
 
 /* ---------- log ---------- */
 

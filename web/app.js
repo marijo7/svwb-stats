@@ -29,6 +29,7 @@ const state = {
   stats: null,
   editingId: null,
   logExpanded: false,
+  pieScope: "my",      // クラス別円グラフの対象 ("my" = 自分クラス / "opp" = 相手クラス)
 };
 
 // ---------------------------------------------------------------------------
@@ -71,11 +72,11 @@ function filterQuery() {
 
 const pct = (rate) => `${(rate * 100).toFixed(1)}%`;
 
-function el(tag, props = {}, children = []) {
-  const node = document.createElement(tag);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function build(node, props, children) {
   for (const [key, value] of Object.entries(props)) {
-    if (key === "class") node.className = value;
-    else if (key === "text") node.textContent = value;
+    if (key === "text") node.textContent = value;
     else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
     else if (value !== null && value !== undefined) node.setAttribute(key, value);
   }
@@ -83,6 +84,15 @@ function el(tag, props = {}, children = []) {
     if (child) node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
   }
   return node;
+}
+
+function el(tag, props = {}, children = []) {
+  return build(document.createElement(tag), props, children);
+}
+
+/** SVG は名前空間が違うので createElement では作れない (中身は el と同じ)。 */
+function svgEl(tag, props = {}, children = []) {
+  return build(document.createElementNS(SVG_NS, tag), props, children);
 }
 
 /**
@@ -205,6 +215,128 @@ function renderBreakdown(tableId, rows, keyLabel) {
   table.appendChild(body);
 }
 
+// ---------------------------------------------------------------------------
+// クラス別の円グラフ
+// ---------------------------------------------------------------------------
+
+/** 用意してある系列色 (--series-1 …) の数。あふれたクラスは「その他」にまとめる。 */
+const PIE_SLOTS = 7;
+
+/** ドーナツの寸法 (viewBox 200×200 上)。r は帯の中心線、width は帯の太さ。 */
+const PIE = { cx: 100, cy: 100, r: 68, width: 30, gap: 2 };
+
+/**
+ * 内訳の行に色を割り当て、config のクラス順に並べ替える。
+ *
+ * 色はクラスに固定する。試合数順に振ると絞り込むたびに同じクラスの色が変わり、
+ * 前の画面と見比べられなくなる。並び順も同じ理由で config 順に揃える
+ * (試合数順にすると、1 戦増えただけで扇が入れ替わる)。
+ */
+function pieSlices(rows, classes) {
+  const slot = new Map(classes.map((name, index) => [name, index]));
+  const slices = [];
+  let other = null;
+  for (const row of rows) {
+    const index = slot.has(row.key) ? slot.get(row.key) : PIE_SLOTS;
+    if (index < PIE_SLOTS) {
+      slices.push({ ...row, index, color: `var(--series-${index + 1})` });
+    } else {
+      // config に無いクラス (旧データ) と 8 クラス目以降の受け皿。
+      other = other || { key: "その他", games: 0, wins: 0, losses: 0, winrate: 0,
+                         index: PIE_SLOTS, color: "var(--series-other)" };
+      other.games += row.games;
+      other.wins += row.wins;
+      other.losses += row.losses;
+      other.winrate = other.wins / other.games;
+    }
+  }
+  slices.sort((a, b) => a.index - b.index);
+  if (other) slices.push(other);
+  return slices;
+}
+
+function sliceTitle(slice, total) {
+  return `${slice.key}: ${slice.games} 戦 (${pct(slice.games / total)}) / `
+    + `${slice.wins} 勝 ${slice.losses} 敗 · 勝率 ${pct(slice.winrate)}`;
+}
+
+/**
+ * ドーナツを描く。扇は circle の破線 (dasharray) で作っている。円弧の path を
+ * 組むより計算が少なく、1 クラスしか無いとき (= 円周まるごと 1 本) も
+ * 特別扱いが要らない。
+ */
+function renderPieChart(slices, total, label) {
+  const { cx, cy, r, width } = PIE;
+  const circumference = 2 * Math.PI * r;
+  // 隣り合う色は 2px 空けて切り離す。色だけに頼らず境目が分かるようにする。
+  const gap = slices.length > 1 ? PIE.gap : 0;
+
+  let offset = 0;
+  const arcs = slices.map((slice) => {
+    const span = (slice.games / total) * circumference;
+    const length = Math.max(span - gap, 0.5);   // 極端に細い扇でも線を残す
+    const arc = svgEl("circle", {
+      class: "pie-slice",
+      cx, cy, r,
+      fill: "none",
+      style: `stroke: ${slice.color}`,
+      "stroke-width": width,
+      "stroke-dasharray": `${length} ${circumference - length}`,
+      "stroke-dashoffset": -(offset + gap / 2),
+    }, [svgEl("title", { text: sliceTitle(slice, total) })]);
+    offset += span;
+    return arc;
+  });
+
+  return svgEl("svg", {
+    class: "pie", viewBox: "0 0 200 200", role: "img",
+    "aria-label": `${label}別の試合数の割合`,
+  }, [
+    // circle は 3 時から時計回りに描かれる。12 時始まりにするため全体を回す。
+    svgEl("g", { transform: `rotate(-90 ${cx} ${cy})` }, arcs),
+    svgEl("text", { class: "pie-total", x: cx, y: cy + 4, text: String(total) }),
+    svgEl("text", { class: "pie-total-unit", x: cx, y: cy + 20, text: "戦" }),
+  ]);
+}
+
+/** 円グラフの凡例。色と名前の対応に加えて、読み取れない数字をここで出す。 */
+function renderPieLegend(slices, total, label) {
+  const table = $("pie-legend");
+  table.replaceChildren();
+  table.appendChild(el("thead", {}, [
+    el("tr", {}, [label, "試合", "割合", "勝率"].map((text) => el("th", { text }))),
+  ]));
+
+  const body = el("tbody");
+  for (const slice of slices) {
+    body.appendChild(el("tr", {}, [
+      el("td", {}, [
+        el("span", { class: "swatch", style: `background: ${slice.color}` }),
+        document.createTextNode(slice.key),
+      ]),
+      el("td", { text: String(slice.games) }),
+      el("td", { text: pct(slice.games / total) }),
+      el("td", { text: pct(slice.winrate) }),
+    ]));
+  }
+  table.appendChild(body);
+}
+
+function renderPie(stats) {
+  const opponent = state.pieScope === "opp";
+  const label = opponent ? "相手クラス" : "自分クラス";
+  const slices = pieSlices(opponent ? stats.by_opp_class : stats.by_my_class, stats.classes);
+  const total = slices.reduce((sum, slice) => sum + slice.games, 0);
+
+  if (!total) {
+    $("pie-chart").replaceChildren();
+    $("pie-legend").replaceChildren();
+    return;
+  }
+  $("pie-chart").replaceChildren(renderPieChart(slices, total, label));
+  renderPieLegend(slices, total, label);
+}
+
 /**
  * グレードは Grand Master 帯でしか付かない。ランクが config の grade_rank と
  * 一致しないときは選べなくして値も落とす。無効化された select は FormData に
@@ -278,6 +410,7 @@ function renderStats(stats) {
   if (!hasData) return;
 
   renderHeadline(stats);
+  renderPie(stats);
   renderMatrix(stats);
   renderBreakdown("by-deck", stats.by_my_deck, "デッキ");
   renderBreakdown("by-opp", stats.by_opp_class, "相手クラス");
@@ -549,6 +682,15 @@ async function init() {
     state.logExpanded = true;
     renderLog(state.records);
   });
+
+  // 円グラフの自分 / 相手切り替え。同じ集計結果の見方を変えるだけなので
+  // サーバーには取りに行かない。
+  for (const input of document.querySelectorAll('input[name="pie_scope"]')) {
+    input.addEventListener("change", () => {
+      state.pieScope = input.value;
+      if (state.stats) renderPie(state.stats);
+    });
+  }
 
   for (const id of FILTER_IDS) {
     $(id).addEventListener("change", () => refresh().catch(reportFatal));

@@ -453,6 +453,13 @@ class TestStats(unittest.TestCase):
         ]
         self.assertEqual(svwb.compute_stats(records, self.classes)["cr"]["delta"], -80)
 
+    def test_my_class_breakdown(self):
+        # ブラウザのクラス別円グラフがこの内訳をそのまま描く。
+        rows = svwb.compute_stats(self.records, self.classes)["by_my_class"]
+        by_key = {row["key"]: row for row in rows}
+        self.assertEqual(by_key["エルフ"]["games"], 3)
+        self.assertEqual(by_key["ドラゴン"]["winrate"], 1.0)
+
     def test_opponent_class_breakdown(self):
         rows = svwb.compute_stats(self.records, self.classes)["by_opp_class"]
         by_key = {row["key"]: row for row in rows}
