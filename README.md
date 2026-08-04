@@ -6,7 +6,19 @@ Shadowverse: Worlds Beyond の戦績管理ツール。ブラウザで 1 試合�
 - **データはテキスト** — 戦績は `data/records.jsonl` に 1 行 1 試合で入る。git に乗せればそのまま履歴になる
 - **数字は 1 か所で計算** — 集計は Python 側にあり、ブラウザと CLI (`svwb.py stats`) で同じ値が出る
 
-## 使う
+## 使う (Windows)
+
+**`start.bat` をダブルクリックするだけ。** ターミナルは不要。黒い窓が開いてサーバーが立ち上がり、ブラウザが自動で `http://127.0.0.1:8787` を開く。止めるときはその黒い窓を閉じる。
+
+Python が入っていない場合は `start.bat` がその旨を表示する。入れ方:
+
+1. スタートメニューで **「Python 3」** と検索
+2. Microsoft Store の Python 3 をインストール（クリックのみ、ターミナル不要）
+3. `start.bat` をもう一度ダブルクリック
+
+インストール済みかどうかは、スタートメニューで「Python」を検索して `Python 3.x` が出るかで判断できる。Microsoft Store が開く場合は未インストール。
+
+## 使う (macOS / Linux)
 
 ```bash
 python3 svwb.py serve --open
@@ -105,9 +117,12 @@ python3 -m unittest discover -s tests -v
 ## 構成
 
 ```
+start.bat        # Windows 用ランチャー (ダブルクリックで起動)
 svwb.py          # CLI + HTTP サーバー + 保存 + 集計
 config.json      # クラス / ランクの定義
 web/             # ブラウザ側 (素の HTML / CSS / JS、ビルド不要)
 data/            # 戦績 JSONL の置き場
 tests/           # unittest
 ```
+
+`start.bat` の中のメッセージが英語なのは意図的で、cmd.exe が .bat を読むときのコードページ次第で日本語が化けるため。

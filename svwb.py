@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import threading
@@ -24,6 +25,15 @@ from datetime import date, datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
+
+if sys.version_info < (3, 9):
+    # start.bat は「Python が動くか」しか見ていないので、
+    # 古すぎる Python を掴んだ場合はここで分かりやすく止める。
+    raise SystemExit(
+        "svwb-stats needs Python 3.9 or newer "
+        f"(this is {sys.version.split()[0]}).\n"
+        "Windows: install Python 3 from the Microsoft Store, then try again."
+    )
 
 ROOT = Path(__file__).resolve().parent
 WEB_DIR = ROOT / "web"
@@ -558,7 +568,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except BrokenPipeError:
+        # `svwb.py stats | head` のように読み手が先に閉じた場合。
+        # stdout を devnull に差し替えてから戻り、終了時の再フラッシュで
+        # 同じ例外がトレースバックとして出るのを防ぐ。
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 0
 
 
 if __name__ == "__main__":

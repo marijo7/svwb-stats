@@ -1,0 +1,2 @@
+# cmd.exe は CRLF 前提。LF のままだと環境によって解釈が壊れる。
+*.bat text eol=crlf
