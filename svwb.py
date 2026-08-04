@@ -64,6 +64,11 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     `grade_rank` は「グレードが付くランク」の名前 (Grand Master)。CR グレードは
     グラマス昇格後にしか存在しないので、この値と一致するランクのときだけ
     グレードを受け付ける。空にすると結び付けを行わない。
+
+    `grade_thresholds` は「そのグレードに必要な最低 CR」。CR を入力したときの
+    グレード自動設定に使う。CR だけでは決まらないグレード (BEYOND は LEGEND の
+    うちランキング上位のみ) は載せない。載っていないグレードは自動設定の対象外に
+    なり、手で選んだ値として扱われる。
     """
     with path.open(encoding="utf-8") as fp:
         config = json.load(fp)
@@ -75,7 +80,17 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         raise ValueError(f"{path}: classes が空です")
     if grade_rank and grade_rank not in ranks:
         raise ValueError(f"{path}: grade_rank '{grade_rank}' が ranks にありません")
-    return {"classes": classes, "ranks": ranks, "grades": grades, "grade_rank": grade_rank}
+
+    thresholds: dict[str, int] = {}
+    for grade, min_cr in (config.get("grade_thresholds") or {}).items():
+        if grade not in grades:
+            raise ValueError(f"{path}: grade_thresholds の '{grade}' が grades にありません")
+        if not isinstance(min_cr, int) or isinstance(min_cr, bool):
+            raise ValueError(f"{path}: grade_thresholds['{grade}'] は整数で指定してください")
+        thresholds[str(grade)] = min_cr
+
+    return {"classes": classes, "ranks": ranks, "grades": grades,
+            "grade_rank": grade_rank, "grade_thresholds": thresholds}
 
 
 # --------------------------------------------------------------------------
