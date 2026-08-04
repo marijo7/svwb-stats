@@ -40,6 +40,7 @@ PC の LAN IP (`192.168.x.x` 等) の `:8787` にスマホのブラウザから�
 python3 svwb.py stats                       # 全期間
 python3 svwb.py stats --since 2026-08-01    # 期間で絞る
 python3 svwb.py stats --my-class エルフ      # クラスで絞る
+python3 svwb.py stats --grade EPIC          # CR グレードで絞る
 python3 svwb.py stats --json                # JSON で出す
 ```
 
@@ -56,9 +57,12 @@ python3 svwb.py stats --json                # JSON で出す
 | `result` | ○ | `win` / `loss` |
 | `rank` | | ランク帯 (`Master` / `Grand Master`) |
 | `grade` | | CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
+| `cr` | | CR の数値。`rank` が `Grand Master` のときだけ入力できる。未入力は `null` |
 | `note` | | メモ |
 
 連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・グレード・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
+
+**CR は引き継がない。** 毎試合動く値なので、前の試合の値が残っていると古い数字をそのまま記録してしまう。
 
 ## 出る集計
 
@@ -67,6 +71,7 @@ python3 svwb.py stats --json                # JSON で出す
 - **対面マトリクス** — 自分クラス × 相手クラス の勝率。試合数が少ないマスは色を薄くしてあり、1 戦だけのマスが「得意な対面」に見えないようにしている
 - **自分デッキ別 / 相手クラス別** — 試合数の多い順
 - **CR グレード別** — グレード付きの戦績が 1 件でもあるときだけ表示される
+- **CR** — 現在値 / 期間の増減 / 最高 / 最低。CR 付きの戦績が 1 件でもあるときだけ表示される
 
 すべて期間・自分クラス・自分デッキ・グレードで絞り込める。絞り込みは API のクエリ (`/api/stats?since=…&grade=EPIC`) にもそのまま対応する。
 
@@ -91,16 +96,24 @@ python3 svwb.py stats --json                # JSON で出す
 
 CR (クラス別レーティング) のグレードはグラマス昇格後にしか存在しないため、`grade_rank` で指定したランクのときだけ入力できる。UI では他のランクを選んでいる間グレード欄が無効になり、サーバー側でも同じ条件で弾く。`grade_rank` を空文字にすると、この結び付けを行わない。
 
-グレードは下から `EPIC未満` → `EPIC` → `ULTIMATE` → `LEGEND` → `BEYOND` の 5 段階。`grades` の並び順はそのまま選択肢の表示順になる (集計は試合数の多い順に並ぶので、順序には依存しない)。
+グレードは下から `EPIC未満` → `EPIC` → `ULTIMATE` → `LEGEND` → `BEYOND` の 5 段階。`grades` の並び順はそのまま選択肢の表示順になる。集計の「CR グレード別」もこの梯子順で並ぶ (他の内訳は試合数順)。
 
 `EPIC未満` は「グラマスではあるがまだ EPIC に届いていない」帯を表す明示的な選択肢。**グレード欄を空のままにするのとは意味が違う** — 空欄は「グレードを記録していない」であって「EPIC 未満だった」ではない。集計の「CR グレード別」には、グレードを選んだ戦績だけが載る。
+
+### CR について
+
+グレードと同じく `grade_rank` のときだけ入力できる。0〜99999 の整数で、この範囲は桁の打ち間違いを弾くための入力ガードであってゲーム側の上限ではない。
+
+集計の「現在 CR」は**対戦日が最も新しい記録の CR**。同じ日に複数試合あるときは記録した順で最後のもの。「期間の増減」は絞り込み範囲の最初と最後の差なので、`--since` を変えると値も変わる。
+
+CR を記録していない戦績は集計から素通しされる (0 として扱われない)。グラマス昇格前の戦績が混ざっていても現在値や増減は歪まない。
 
 ## データ
 
 `data/records.jsonl` は 1 行 1 試合の JSON。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "エルフ", "my_deck": "アグロエルフ", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "AA1", "note": "", "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "grade": "EPIC", "cr": 1530, "note": "", "id": "…", "created_at": "…"}
 ```
 
 追加は追記のみなので、その日足した試合が git の差分にそのまま出る。別のファイルを使いたい場合は `--data` で指定する。
@@ -115,7 +128,7 @@ python3 svwb.py --data /path/to/records.jsonl serve
 
 | メソッド | パス | 内容 |
 |---|---|---|
-| `GET` | `/api/config` | クラス / ランクの一覧 |
+| `GET` | `/api/config` | クラス / ランク / グレードの一覧 |
 | `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `grade` で絞り込み) |
 | `POST` | `/api/records` | 追加 |
 | `PUT` | `/api/records/{id}` | 更新 |
@@ -133,7 +146,7 @@ python3 -m unittest discover -s tests -v
 ```
 start.bat        # Windows 用ランチャー (ダブルクリックで起動)
 svwb.py          # CLI + HTTP サーバー + 保存 + 集計
-config.json      # クラス / ランクの定義
+config.json      # クラス / ランク / グレードの定義
 web/             # ブラウザ側 (素の HTML / CSS / JS、ビルド不要)
 data/            # 戦績 JSONL の置き場
 tests/           # unittest
