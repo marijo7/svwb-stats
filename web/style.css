@@ -90,6 +90,12 @@ main {
   gap: 18px;
 }
 
+/* グリッドの子は既定で min-width:auto、つまり中身より狭くならない。戦績の表は
+   列が多く縮まないので、これを 0 にしないと表の幅がページ全体を横に広げてしまう。
+   画面が広いうちは表が収まるので気付かないが、スマホ幅では横スクロールになる。
+   はみ出す表は .table-scroll の中だけで横に流れればよい。 */
+main > * { min-width: 0; }
+
 /* ---------- card ---------- */
 
 .card {
@@ -128,7 +134,7 @@ main {
 .field > span, .field > legend { font-size: 12px; color: var(--muted); padding: 0; }
 .field em { font-style: normal; opacity: .65; }
 
-input[type="text"], input[type="date"], select, textarea {
+input[type="text"], input[type="date"], input[type="number"], select, textarea {
   width: 100%;
   padding: 8px 10px;
   background: var(--surface-2);
@@ -138,6 +144,16 @@ input[type="text"], input[type="date"], select, textarea {
   font: inherit;
 }
 textarea { resize: vertical; }
+
+/* スマホから入力するとき用。iOS Safari は 16px 未満の入力欄にフォーカスすると
+   画面を勝手に拡大するので、狭い画面では 16px にして拡大させない。先攻 / 後攻の
+   ような 1 タップで押すものは、指で押せる高さまで広げる。 */
+@media (max-width: 700px) {
+  input[type="text"], input[type="date"], input[type="number"], select, textarea {
+    font-size: 16px;
+  }
+  .toggles span { padding: 12px 10px; }
+}
 input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -207,7 +223,7 @@ button.link:hover { color: var(--text); text-decoration: underline; }
 .stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
 .stat .detail { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-.table-scroll { overflow-x: auto; }
+.table-scroll { overflow-x: auto; min-width: 0; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; }
