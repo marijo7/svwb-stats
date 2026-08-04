@@ -21,7 +21,7 @@
       <form id="entry-form" autocomplete="off">
         <input type="hidden" name="id" id="field-id">
 
-        <div class="grid grid-3">
+        <div class="grid grid-4">
           <label class="field">
             <span>日付</span>
             <input type="date" name="played_at" id="field-played_at" required>
@@ -35,6 +35,12 @@
           <label class="field">
             <span>グレード <em id="grade-hint">任意</em></span>
             <select name="grade" id="field-grade"></select>
+          </label>
+
+          <label class="field">
+            <span>CR <em id="cr-hint">任意</em></span>
+            <input type="number" name="cr" id="field-cr" min="0" max="99999" step="1"
+                   inputmode="numeric" placeholder="例: 1520">
           </label>
         </div>
 
@@ -132,6 +138,7 @@
       <div id="stats-empty" class="empty" hidden>まだ戦績がありません。上のフォームから記録してください。</div>
       <div id="stats-body" hidden>
         <div class="stat-row" id="headline"></div>
+        <div class="stat-row" id="cr-row" hidden></div>
 
         <h3>対面マトリクス</h3>
         <p class="caption">行 = 自分クラス（使ったクラスのみ） / 列 = 相手クラス。セルは 勝率 (勝-敗)、<code>–</code> は未対戦。色の濃さは試合数が増えるほど強くなります。</p>

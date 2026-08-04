@@ -89,8 +89,12 @@ main {
   .grid, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
 }
 
-/* グレードはグラマス帯でしか付かない。ランクが一致しないときは触れなくする。 */
-.field select:disabled { opacity: .5; cursor: not-allowed; }
+/* グレードと CR はグラマス帯でしか付かない。ランクが一致しないときは触れなくする。 */
+.field select:disabled, .field input:disabled { opacity: .5; cursor: not-allowed; }
+
+#cr-row { margin-top: 12px; }
+.stat .delta-up { color: var(--win); }
+.stat .delta-down { color: var(--loss); }
 
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; margin: 0; border: 0; padding: 0; }
 .field > span, .field > legend { font-size: 12px; color: var(--muted); padding: 0; }
@@ -199,11 +203,13 @@ th:first-child, td:first-child { text-align: left; }
 
 /* ---------- log ---------- */
 
-/* 日付・クラス・ランク・メモは文字列なので左寄せ。数値列だけ右寄せのまま。 */
+/* 列: 1日付 2自分 3相手 4先後 5結果 6ランク 7グレード 8CR 9メモ 10操作
+   文字列は左寄せ、先後と結果は中央、CR だけ数値なので右寄せ。 */
 .log th:nth-child(-n+3), .log td:nth-child(-n+3),
 .log th:nth-child(n+6), .log td:nth-child(n+6) { text-align: left; }
 .log th:nth-child(4), .log td:nth-child(4),
 .log th:nth-child(5), .log td:nth-child(5) { text-align: center; }
+.log th:nth-child(8), .log td:nth-child(8) { text-align: right; }
 .log .win { color: var(--win); font-weight: 600; }
 .log .loss { color: var(--loss); font-weight: 600; }
 .log .note { color: var(--muted); font-size: 12px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
