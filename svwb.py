@@ -48,6 +48,9 @@ RESULTS = ("win", "loss")
 MAX_TEXT = 120
 MAX_NOTE = 1000
 
+#: CR の受け付け上限。ゲーム側の上限ではなく、桁の打ち間違いを弾くための入力ガード。
+MAX_CR = 99999
+
 
 # --------------------------------------------------------------------------
 # 設定
@@ -151,6 +154,26 @@ def validate_record(payload: dict, config: dict) -> dict:
     elif grade and grade_rank and record["rank"] != grade_rank:
         errors["grade"] = f"グレードは {grade_rank} のときだけ記録できます"
     record["grade"] = grade if isinstance(grade, str) else ""
+
+    # CR はグレードと同じくグラマス帯のみ。未入力は "" ではなく None で持つ
+    # (数値フィールドなので、空文字より null のほうが後段で扱いやすい)。
+    record["cr"] = None
+    cr_raw = payload.get("cr")
+    if cr_raw is not None and cr_raw != "":
+        if isinstance(cr_raw, bool):
+            errors["cr"] = "整数で指定してください"
+        else:
+            try:
+                cr = int(cr_raw)
+            except (TypeError, ValueError):
+                errors["cr"] = "整数で指定してください"
+            else:
+                if not 0 <= cr <= MAX_CR:
+                    errors["cr"] = f"0〜{MAX_CR} の範囲で指定してください"
+                elif grade_rank and record["rank"] != grade_rank:
+                    errors["cr"] = f"CR は {grade_rank} のときだけ記録できます"
+                else:
+                    record["cr"] = cr
 
     if errors:
         raise ValidationError(errors)
@@ -283,6 +306,25 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
     return out
 
 
+def _cr_summary(records: list[dict]) -> dict | None:
+    """CR を記録した戦績から推移の要約を作る。1 件も無ければ None。
+
+    records は played_at 順に並んでいる前提 (RecordStore.list がそう返す)。
+    delta は「絞り込んだ期間で CR がいくつ動いたか」で、最初と最後の差。
+    """
+    values = [r["cr"] for r in records if isinstance(r.get("cr"), int)]
+    if not values:
+        return None
+    return {
+        "games": len(values),
+        "first": values[0],
+        "latest": values[-1],
+        "delta": values[-1] - values[0],
+        "min": min(values),
+        "max": max(values),
+    }
+
+
 def _order_by(rows: list[dict], order: list[str]) -> list[dict]:
     """rows を指定の並び (梯子順) に並べ替える。order に無いキーは末尾へ。"""
     rank = {key: i for i, key in enumerate(order)}
@@ -335,6 +377,7 @@ def compute_stats(records: list[dict], classes: list[str],
         # BEYOND という順序自体が読む側の求める情報なので。
         "by_grade": _order_by(
             _breakdown([r for r in records if r.get("grade")], "grade"), grades or []),
+        "cr": _cr_summary(records),
     }
 
 
@@ -578,6 +621,15 @@ def cmd_stats(args: argparse.Namespace) -> int:
         width = max(_display_width(row["key"]) for row in stats["by_grade"])
         for row in stats["by_grade"]:
             print(_format_tally(row["key"], row, width))
+        print()
+
+    cr = stats["cr"]
+    if cr:
+        sign = "+" if cr["delta"] >= 0 else ""
+        print("== CR ==")
+        print(f"現在   {cr['latest']}  ({sign}{cr['delta']} / {cr['games']} 戦)")
+        print(f"最高   {cr['max']}")
+        print(f"最低   {cr['min']}")
     return 0
 
 
