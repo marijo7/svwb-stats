@@ -11,6 +11,10 @@
   <header class="topbar">
     <h1>svwb-stats</h1>
     <p class="subtitle">Shadowverse: Worlds Beyond 戦績</p>
+    <nav class="tabs" aria-label="画面">
+      <a href="/" class="active" aria-current="page">ランク戦</a>
+      <a href="/tournament.html">大会 (2 デッキ BO1)</a>
+    </nav>
     <div class="topbar-summary" id="topbar-summary" aria-live="polite"></div>
   </header>
 
@@ -26,6 +30,12 @@
           <h2 id="entry-title">記録する</h2>
           <form id="entry-form" autocomplete="off">
             <input type="hidden" name="id" id="field-id">
+            <!-- 大会 (tournament.html) で記録した戦績をこの画面から編集するとき、
+                 大会の項目を送り返すために持っておく。新規入力では空 = ランク戦。 -->
+            <input type="hidden" name="mode" id="field-mode">
+            <input type="hidden" name="event" id="field-event">
+            <input type="hidden" name="round" id="field-round">
+            <input type="hidden" name="opponent" id="field-opponent">
 
             <div class="grid grid-4">
               <label class="field">
@@ -123,6 +133,18 @@
               <input type="date" id="filter-until">
             </label>
             <label class="field">
+              <span>モード</span>
+              <select id="filter-mode">
+                <option value="">すべて</option>
+                <option value="ladder">ランク戦</option>
+                <option value="tournament">大会</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>大会</span>
+              <select id="filter-event"></select>
+            </label>
+            <label class="field">
               <span>自分クラス</span>
               <select id="filter-my_class"></select>
             </label>
@@ -206,6 +228,7 @@
     <a href="/api/stats" target="_blank" rel="noopener">集計 JSON</a>
   </footer>
 
+  <script src="/common.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -224,6 +224,66 @@ class TestValidation(unittest.TestCase):
             svwb.validate_record(make_record(my_deck="あ" * 121), CONFIG)
 
 
+class TestTournamentFields(unittest.TestCase):
+    """大会 (2 デッキ BO1) の画面が足す項目。"""
+
+    def test_defaults_to_ladder(self):
+        record = svwb.validate_record(make_record(), CONFIG)
+        self.assertEqual(record["mode"], "ladder")
+        self.assertEqual(record["event"], "")
+        self.assertEqual(record["opponent"], "")
+        self.assertIsNone(record["round"])
+
+    def test_accepts_a_tournament_record(self):
+        record = svwb.validate_record(make_record(
+            mode="tournament", event="第 1 回 WB 杯", opponent="たろう", round=3), CONFIG)
+        self.assertEqual(record["mode"], "tournament")
+        self.assertEqual(record["event"], "第 1 回 WB 杯")
+        self.assertEqual(record["opponent"], "たろう")
+        self.assertEqual(record["round"], 3)
+
+    def test_round_accepts_numeric_strings_from_the_form(self):
+        record = svwb.validate_record(make_record(mode="tournament", round="2"), CONFIG)
+        self.assertEqual(record["round"], 2)
+
+    def test_rejects_unknown_mode(self):
+        with self.assertRaises(svwb.ValidationError) as ctx:
+            svwb.validate_record(make_record(mode="draft"), CONFIG)
+        self.assertIn("mode", ctx.exception.errors)
+
+    def test_rejects_tournament_fields_on_ladder_records(self):
+        # ランク戦の記録に大会名が紛れると「この大会だけの集計」が信用できなくなる。
+        for field, value in (("event", "杯"), ("opponent", "たろう"), ("round", 1)):
+            with self.subTest(field=field), self.assertRaises(svwb.ValidationError) as ctx:
+                svwb.validate_record(make_record(**{field: value}), CONFIG)
+            self.assertIn(field, ctx.exception.errors)
+
+    def test_rejects_out_of_range_round(self):
+        for bad in (0, -1, svwb.MAX_ROUND + 1):
+            with self.subTest(bad=bad), self.assertRaises(svwb.ValidationError) as ctx:
+                svwb.validate_record(make_record(mode="tournament", round=bad), CONFIG)
+            self.assertIn("round", ctx.exception.errors)
+
+    def test_rejects_non_integer_round(self):
+        for bad in ("R1", "1.5", [], True):
+            with self.subTest(bad=bad), self.assertRaises(svwb.ValidationError) as ctx:
+                svwb.validate_record(make_record(mode="tournament", round=bad), CONFIG)
+            self.assertIn("round", ctx.exception.errors)
+
+    def test_round_is_optional_in_a_tournament(self):
+        for empty in (None, ""):
+            with self.subTest(empty=empty):
+                record = svwb.validate_record(
+                    make_record(mode="tournament", round=empty), CONFIG)
+                self.assertIsNone(record["round"])
+
+    def test_tournament_record_keeps_the_shared_shape(self):
+        # 集計はランク戦と共用なので、大会の戦績も同じキーを持つ必要がある。
+        ladder = svwb.validate_record(make_record(), CONFIG)
+        tournament = svwb.validate_record(make_record(mode="tournament", event="杯"), CONFIG)
+        self.assertEqual(set(ladder), set(tournament))
+
+
 class TestStore(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -330,6 +390,26 @@ class TestFilter(unittest.TestCase):
         ]
         self.assertEqual(len(svwb.filter_records(records, grade="EPIC")), 1)
         self.assertEqual(len(svwb.filter_records(records)), 3)
+
+    def test_mode_and_event_filters(self):
+        records = [
+            make_record(mode="tournament", event="A杯"),
+            make_record(mode="tournament", event="A杯"),
+            make_record(mode="tournament", event="B杯"),
+            make_record(mode="ladder"),
+        ]
+        self.assertEqual(len(svwb.filter_records(records, mode="tournament")), 3)
+        self.assertEqual(len(svwb.filter_records(records, mode="ladder")), 1)
+        self.assertEqual(len(svwb.filter_records(records, event="A杯")), 2)
+        self.assertEqual(
+            len(svwb.filter_records(records, mode="tournament", event="B杯")), 1)
+
+    def test_records_without_a_mode_count_as_ladder(self):
+        # 大会機能より前に記録した戦績には mode が無い (make_record も持たない)。
+        legacy = make_record()
+        self.assertNotIn("mode", legacy)
+        self.assertEqual(len(svwb.filter_records([legacy], mode="ladder")), 1)
+        self.assertEqual(len(svwb.filter_records([legacy], mode="tournament")), 0)
 
 
 class TestStats(unittest.TestCase):
@@ -555,6 +635,40 @@ class TestHttpApi(unittest.TestCase):
         self.assertIn("grade", body["fields"])
 
         self.request("DELETE", f"/api/records/{created['id']}")
+
+    def test_046_tournament_roundtrip_and_filters(self):
+        rounds = [
+            make_record(mode="tournament", event="WB杯", round=1, opponent="たろう",
+                        my_deck="連携ロイヤル", my_class="ロイヤル", result="win"),
+            make_record(mode="tournament", event="WB杯", round=2,
+                        my_deck="進化エルフ", my_class="エルフ", result="loss"),
+            make_record(mode="tournament", event="別の杯", round=1, result="win"),
+        ]
+        created = []
+        for payload in rounds:
+            status, record = self.request("POST", "/api/records", payload)
+            self.assertEqual(status, 201)
+            created.append(record["id"])
+
+        status, body = self.request("GET", "/api/stats?mode=tournament&event=WB%E6%9D%AF")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["overall"], {"games": 2, "wins": 1, "losses": 1, "winrate": 0.5})
+        # 集計はランク戦と同じもの。持ち込んだ 2 デッキの成績がそのまま出る。
+        self.assertEqual({row["key"] for row in body["by_my_deck"]},
+                         {"連携ロイヤル", "進化エルフ"})
+
+        # ランク戦の集計に大会の戦績は混ざらない。
+        status, body = self.request("GET", "/api/stats?mode=ladder")
+        self.assertEqual(status, 200)
+        self.assertNotIn("連携ロイヤル", {row["key"] for row in body["by_my_deck"]})
+
+        for record_id in created:
+            self.request("DELETE", f"/api/records/{record_id}")
+
+    def test_047_tournament_fields_need_tournament_mode(self):
+        status, body = self.request("POST", "/api/records", make_record(event="WB杯"))
+        self.assertEqual(status, 400)
+        self.assertIn("event", body["fields"])
 
     def test_05_unknown_id_is_404(self):
         self.assertEqual(self.request("DELETE", "/api/records/deadbeef")[0], 404)

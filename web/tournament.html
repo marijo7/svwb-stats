@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>svwb-stats — 大会 (2 デッキ BO1)</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🃏</text></svg>">
+</head>
+<body>
+  <header class="topbar">
+    <h1>svwb-stats</h1>
+    <p class="subtitle">大会 — 2 デッキ BO1</p>
+    <nav class="tabs" aria-label="画面">
+      <a href="/">ランク戦</a>
+      <a href="/tournament.html" class="active" aria-current="page">大会 (2 デッキ BO1)</a>
+    </nav>
+    <div class="topbar-summary" id="topbar-summary" aria-live="polite"></div>
+  </header>
+
+  <main>
+    <!-- ランク戦の画面と同じ並び。PC では左に入力、右に成績。 -->
+    <div class="workspace">
+      <div class="workspace-col">
+
+        <!-- ---------------- 大会設定 ---------------- -->
+        <section class="card" aria-labelledby="setup-title">
+          <h2 id="setup-title">大会設定</h2>
+          <div class="grid">
+            <label class="field">
+              <span>大会名</span>
+              <input type="text" id="setup-event" list="event-list" maxlength="120"
+                     placeholder="例: 第 12 回 WB 杯" required>
+            </label>
+            <label class="field">
+              <span>日付</span>
+              <input type="date" id="setup-played_at" required>
+            </label>
+          </div>
+          <datalist id="event-list"></datalist>
+
+          <div class="grid">
+            <label class="field">
+              <span>デッキ① クラス</span>
+              <select id="setup-deck1_class"></select>
+            </label>
+            <label class="field">
+              <span>デッキ① 名前 <em>任意</em></span>
+              <input type="text" id="setup-deck1_deck" list="deck-list" maxlength="120"
+                     placeholder="例: 連携ロイヤル">
+            </label>
+          </div>
+
+          <div class="grid">
+            <label class="field">
+              <span>デッキ② クラス</span>
+              <select id="setup-deck2_class"></select>
+            </label>
+            <label class="field">
+              <span>デッキ② 名前 <em>任意</em></span>
+              <input type="text" id="setup-deck2_deck" list="deck-list" maxlength="120"
+                     placeholder="例: 進化エルフ">
+            </label>
+          </div>
+
+          <datalist id="deck-list"></datalist>
+
+          <p class="hint">持ち込んだ 2 デッキを先に登録しておくと、各ラウンドは「どちらを使ったか」を
+            1 タップ選ぶだけになります。設定はこの端末のブラウザに残ります。</p>
+        </section>
+
+        <!-- ---------------- ラウンドの記録 ---------------- -->
+        <section class="card entry" aria-labelledby="round-title">
+          <h2 id="round-title">ラウンドを記録</h2>
+          <form id="round-form" autocomplete="off">
+            <input type="hidden" id="field-id">
+
+            <div class="grid">
+              <label class="field">
+                <span>ラウンド</span>
+                <input type="number" id="field-round" min="1" max="99" step="1"
+                       inputmode="numeric" required>
+              </label>
+              <label class="field">
+                <span>対戦相手 <em>任意</em></span>
+                <input type="text" id="field-opponent" maxlength="120" placeholder="プレイヤー名">
+              </label>
+            </div>
+
+            <fieldset class="field toggle-group">
+              <legend>使用デッキ</legend>
+              <div class="toggles decks" id="field-deck"></div>
+            </fieldset>
+
+            <div class="grid">
+              <label class="field">
+                <span>相手クラス</span>
+                <select id="field-opp_class" required></select>
+              </label>
+              <label class="field">
+                <span>相手デッキ <em>任意</em></span>
+                <input type="text" id="field-opp_deck" list="deck-list" maxlength="120"
+                       placeholder="例: ミッドロイヤル">
+              </label>
+            </div>
+
+            <div class="grid">
+              <fieldset class="field toggle-group">
+                <legend>先攻 / 後攻</legend>
+                <div class="toggles" id="field-turn">
+                  <label><input type="radio" name="turn" value="first" required><span>先攻</span></label>
+                  <label><input type="radio" name="turn" value="second"><span>後攻</span></label>
+                </div>
+              </fieldset>
+
+              <fieldset class="field toggle-group">
+                <legend>勝敗</legend>
+                <div class="toggles result" id="field-result">
+                  <label><input type="radio" name="result" value="win" required><span>勝ち</span></label>
+                  <label><input type="radio" name="result" value="loss"><span>負け</span></label>
+                </div>
+              </fieldset>
+            </div>
+
+            <label class="field">
+              <span>メモ <em>任意</em></span>
+              <textarea id="field-note" rows="2" maxlength="1000" placeholder="相手のもう 1 デッキ、負け筋、など"></textarea>
+            </label>
+
+            <p class="form-error" id="form-error" role="alert" hidden></p>
+
+            <div class="actions">
+              <button type="submit" class="primary" id="submit-button">記録する</button>
+              <button type="button" id="cancel-edit" hidden>編集をやめる</button>
+              <span class="hint" id="round-hint"></span>
+            </div>
+          </form>
+        </section>
+
+      </div>
+      <div class="workspace-col">
+
+        <!-- ---------------- この大会の成績 ---------------- -->
+        <section class="card" aria-labelledby="summary-title">
+          <h2 id="summary-title">この大会の成績</h2>
+          <div id="summary-empty" class="empty">まだこの大会の記録がありません。</div>
+          <div id="summary-body" hidden>
+            <div class="stat-row" id="headline"></div>
+
+            <h3>使用デッキ別</h3>
+            <p class="caption">2 デッキのどちらが勝っているか。BO1 なので 1 ラウンド = 1 試合です。</p>
+            <div class="table-scroll"><table class="breakdown" id="by-deck"></table></div>
+
+            <h3>相手クラス別</h3>
+            <div class="table-scroll"><table class="breakdown" id="by-opp"></table></div>
+          </div>
+          <div class="actions">
+            <a class="button-link" id="full-stats-link" href="/">この大会の集計を詳しく見る</a>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- ---------------- ラウンド一覧 ---------------- -->
+    <section class="card" aria-labelledby="rounds-title">
+      <h2 id="rounds-title">ラウンド一覧 <span class="count" id="rounds-count"></span></h2>
+      <div class="table-scroll">
+        <table class="rounds" id="rounds"></table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>戦績は <code>data/records.jsonl</code> に、ランク戦と同じ形で保存されます。</span>
+    <a href="/api/stats?mode=tournament" target="_blank" rel="noopener">大会の集計 JSON</a>
+  </footer>
+
+  <script src="/common.js"></script>
+  <script src="/tournament.js"></script>
+</body>
+</html>

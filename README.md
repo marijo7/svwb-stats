@@ -5,6 +5,7 @@ Shadowverse: Worlds Beyond の戦績管理ツール。ブラウザで 1 試合�
 - **依存なし** — Python 3.9 以降の標準ライブラリだけで動く。`pip install` も `npm install` も不要
 - **データはテキスト** — 戦績は `data/records.jsonl` に 1 行 1 試合で入る。git に乗せればそのまま履歴になる
 - **数字は 1 か所で計算** — 集計は Python 側にあり、ブラウザと CLI (`svwb.py stats`) で同じ値が出る
+- **ランク戦と大会** — 画面上部のタブで切り替える。大会 (2 デッキ BO1) 用の入力画面があり、記録は同じファイル・同じ集計に乗る
 
 ## 使う (Windows)
 
@@ -35,6 +36,8 @@ python3 svwb.py stats                       # 全期間
 python3 svwb.py stats --since 2026-08-01    # 期間で絞る
 python3 svwb.py stats --my-class エルフ      # クラスで絞る
 python3 svwb.py stats --grade EPIC          # CR グレードで絞る
+python3 svwb.py stats --mode ladder         # ランク戦だけ (--mode tournament で大会だけ)
+python3 svwb.py stats --event WB杯           # 大会名で絞る
 python3 svwb.py stats --json                # JSON で出す
 ```
 
@@ -92,10 +95,31 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `grade` | | CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
 | `cr` | | CR の数値。`rank` が `Grand Master` のときだけ入力できる。未入力は `null` |
 | `note` | | メモ |
+| `mode` | | `ladder` (ランク戦、既定) / `tournament` (大会)。どちらの画面で記録したか |
+| `event` | | 大会名。`mode` が `tournament` のときだけ入力できる |
+| `round` | | ラウンド番号 (1〜99)。`mode` が `tournament` のときだけ入力できる。未入力は `null` |
+| `opponent` | | 対戦相手のプレイヤー名。`mode` が `tournament` のときだけ入力できる |
 
 連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・グレード・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
 
 **CR は引き継がない。** 毎試合動く値なので、前の試合の値が残っていると古い数字をそのまま記録してしまう。
+
+## 大会 (2 デッキ BO1) を記録する
+
+画面上部のタブで **「大会 (2 デッキ BO1)」** に切り替えると、大会用の入力画面になる。2 デッキ持ち込みで 1 ラウンド 1 本先取 (BO1) の大会を、ラウンドごとに 1 タップずつ記録するための画面。
+
+1. **大会設定** に大会名・日付と、持ち込んだ 2 デッキ (クラスとデッキ名) を入れる
+2. **ラウンドを記録** で、使ったデッキ → 相手クラス → 先攻/後攻 → 勝敗 を選んで「記録する」
+
+使用デッキは登録した 2 つがそのままボタンになるので、毎ラウンド選ぶのはどちらを使ったかだけ。ラウンド番号は記録するたびに 1 つ進み、大会名・日付・使用デッキは次のラウンドに引き継がれる。相手クラスにフォーカスが移る。
+
+**大会設定はこの端末のブラウザ (localStorage) に残る。** 画面を閉じても同じ大会の続きから入力できる。サーバーには置いていないので、PC とスマホで別々の大会を同時に記録することもできる。
+
+右側 (スマホでは下) に出る「この大会の成績」は、その大会だけに絞った勝敗・先攻/後攻・使用デッキ別・相手クラス別。**2 デッキのどちらが勝っているかがその場で分かる。** 「この大会の集計を詳しく見る」を押すと、ランク戦の画面をその大会で絞り込んだ状態で開く (対面マトリクスや円グラフも同じものが使える)。
+
+記録の形はランク戦とまったく同じで、`mode` と大会名が付くだけ。そのため保存先も集計も共通で、大会専用の集計ロジックは無い。
+
+**ランク戦の画面と混ざるのが嫌なときは、絞り込みの「モード」で分ける。** 履歴には「大会」列が出るので、どの試合が大会のものかは一目で分かる。大会の戦績をランク戦の画面から編集しても、大会名やラウンドは消えない。
 
 ## 出る集計
 
@@ -107,13 +131,13 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 - **CR グレード別** — グレード付きの戦績が 1 件でもあるときだけ表示される
 - **CR** — 現在値 / 期間の増減 / 最高 / 最低。CR 付きの戦績が 1 件でもあるときだけ表示される
 
-すべて期間・自分クラス・自分デッキ・グレードで絞り込める。絞り込みは API のクエリ (`/api/stats?since=…&grade=EPIC`) にもそのまま対応する。
+すべて期間・モード (ランク戦 / 大会)・大会名・自分クラス・自分デッキ・グレードで絞り込める。絞り込みは API のクエリ (`/api/stats?since=…&grade=EPIC`) にもそのまま対応し、URL のクエリを付けて画面を開けばその条件で表示された状態から始まる (`/?mode=tournament&event=WB杯`)。
 
 ### 画面の並び
 
 **PC のように窓が広いとき (おおよそ 1200px 以上) は、左に入力欄・右に絞り込みと集計が並ぶ。** 記録するとその場で右側の勝率が更新されるので、1 試合ごとにスクロールして集計を見に行かなくてよい。履歴はその下に全幅で出る。
 
-窓が狭いときとスマホでは、入力 → 絞り込み → 集計 → 履歴 の順に縦へ積む従来どおりの並びになる。切り替えは CSS だけで、表示される内容は同じ。
+窓が狭いときとスマホでは、入力 → 絞り込み → 集計 → 履歴 の順に縦へ積む従来どおりの並びになる。切り替えは CSS だけで、表示される内容は同じ。大会の画面も同じ並びで、左に大会設定とラウンド入力、右にその大会の成績が出る。
 
 ## クラス / ランク / グレードを増やす
 
@@ -173,8 +197,16 @@ CR を入力するとグレードが自動で選ばれる。対応は `config.js
 `data/records.jsonl` は 1 行 1 試合の JSON。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "grade": "EPIC", "cr": 1530, "note": "", "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "grade": "EPIC", "cr": 1530, "note": "", "mode": "ladder", "event": "", "opponent": "", "round": null, "id": "…", "created_at": "…"}
 ```
+
+大会の戦績も同じファイル・同じ形で、`mode` と大会の項目が入るだけ。
+
+```json
+{"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "grade": "", "cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "round": 3, "id": "…", "created_at": "…"}
+```
+
+`mode` を持たない行 (大会機能より前に記録したもの) はランク戦として扱われる。`--mode ladder` や絞り込みの「ランク戦」にもそのまま含まれるので、古いデータを書き換える必要はない。
 
 追加は追記のみなので、その日足した試合が git の差分にそのまま出る。別のファイルを使いたい場合は `--data` で指定する。
 
@@ -189,7 +221,7 @@ python3 svwb.py --data /path/to/records.jsonl serve
 | メソッド | パス | 内容 |
 |---|---|---|
 | `GET` | `/api/config` | クラス / ランク / グレードの一覧 |
-| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `grade` で絞り込み) |
+| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `grade` `mode` `event` で絞り込み) |
 | `POST` | `/api/records` | 追加 |
 | `PUT` | `/api/records/{id}` | 更新 |
 | `DELETE` | `/api/records/{id}` | 削除 |
@@ -210,6 +242,9 @@ svwb.py          # CLI + HTTP サーバー + 保存 + 集計
 qr.py            # LAN 起動時に出す QR コードの生成
 config.json      # クラス / ランク / グレードの定義
 web/             # ブラウザ側 (素の HTML / CSS / JS、ビルド不要)
+                 #   common.js …… 両画面が使う土台 (API 呼び出しと描画ヘルパー)
+                 #   index.html + app.js …… ランク戦の入力と集計
+                 #   tournament.html + tournament.js …… 大会 (2 デッキ BO1) の入力
 data/            # 戦績 JSONL の置き場
 tests/           # unittest
 ```

@@ -1,24 +1,34 @@
 "use strict";
 
 /**
- * svwb-stats のフロントエンド。
+ * svwb-stats のランク戦画面。
  *
  * サーバー (svwb.py serve) の JSON API だけを相手にする薄い画面で、
  * 勝率などの計算は一切ここではやらず /api/stats の結果を描画する。
  * 集計ロジックを Python 側に一本化しておくと、CLI (`svwb.py stats`) と
  * ブラウザで数字がずれない。
+ *
+ * $ / el / api などの土台は common.js にある (先に読み込まれる)。
+ * 大会の入力画面は tournament.js。集計はこの画面のものを共用する。
  */
-
-const $ = (id) => document.getElementById(id);
-
-const TURN_LABEL = { first: "先攻", second: "後攻" };
-const RESULT_LABEL = { win: "勝ち", loss: "負け" };
 
 /** 直近の入力。連戦を記録するとき毎回選び直さずに済むよう引き継ぐ。 */
 const CARRY_FIELDS = ["my_class", "my_deck", "rank", "grade"];
 
-/** 絞り込みに使う入力欄の id。 */
-const FILTER_IDS = ["filter-since", "filter-until", "filter-my_class", "filter-my_deck", "filter-grade"];
+/** 絞り込みの入力欄 id と、それが対応する API のクエリ名。 */
+const FILTERS = {
+  "filter-since": "since",
+  "filter-until": "until",
+  "filter-my_class": "my_class",
+  "filter-my_deck": "my_deck",
+  "filter-grade": "grade",
+  "filter-mode": "mode",
+  "filter-event": "event",
+};
+const FILTER_IDS = Object.keys(FILTERS);
+
+/** モードの表示名。値は API / 保存されるデータと同じ。 */
+const MODE_LABEL = { ladder: "ランク戦", tournament: "大会" };
 
 /** 履歴の既定表示件数。 */
 const LOG_PAGE_SIZE = 30;
@@ -33,64 +43,18 @@ const state = {
 };
 
 // ---------------------------------------------------------------------------
-// API
-// ---------------------------------------------------------------------------
-
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || `${response.status} ${response.statusText}`);
-    error.fields = payload.fields || {};
-    throw error;
-  }
-  return payload;
-}
-
-/** 絞り込み条件を querystring にする。空の条件は送らない。 */
-function filterQuery() {
-  const params = new URLSearchParams();
-  for (const [id, name] of [
-    ["filter-since", "since"],
-    ["filter-until", "until"],
-    ["filter-my_class", "my_class"],
-    ["filter-my_deck", "my_deck"],
-    ["filter-grade", "grade"],
-  ]) {
-    if ($(id).value) params.set(name, $(id).value);
-  }
-  const query = params.toString();
-  return query ? `?${query}` : "";
-}
-
-// ---------------------------------------------------------------------------
 // 描画ヘルパー
 // ---------------------------------------------------------------------------
 
-const pct = (rate) => `${(rate * 100).toFixed(1)}%`;
+/** 絞り込み欄の値を API のクエリ名で拾う。 */
+function filterValues() {
+  return Object.fromEntries(
+    Object.entries(FILTERS).map(([id, name]) => [name, $(id).value]));
+}
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-function build(node, props, children) {
-  for (const [key, value] of Object.entries(props)) {
-    if (key === "text") node.textContent = value;
-    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
-    else if (value !== null && value !== undefined) node.setAttribute(key, value);
-  }
-  for (const child of [].concat(children)) {
-    if (child) node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
-  }
-  return node;
-}
-
-function el(tag, props = {}, children = []) {
-  return build(document.createElement(tag), props, children);
-}
-
-/** SVG は名前空間が違うので createElement では作れない (中身は el と同じ)。 */
+/** SVG は名前空間が違うので createElement では作れない (中身は common.js の el と同じ)。 */
 function svgEl(tag, props = {}, children = []) {
   return build(document.createElementNS(SVG_NS, tag), props, children);
 }
@@ -109,30 +73,16 @@ function heatStyle(cell) {
   return `background: color-mix(in srgb, ${hue} ${strength}%, transparent);`;
 }
 
-function replaceOptions(select, values, { placeholder = "" } = {}) {
-  const previous = select.value;
-  select.replaceChildren();
-  if (placeholder !== null) select.appendChild(el("option", { value: "", text: placeholder }));
-  for (const value of values) select.appendChild(el("option", { value, text: value }));
-  if (values.includes(previous)) select.value = previous;
-}
-
 // ---------------------------------------------------------------------------
 // 集計の描画
 // ---------------------------------------------------------------------------
 
 function renderHeadline(stats) {
-  const cards = [
-    { label: "全体", tally: stats.overall },
-    { label: "先攻", tally: stats.turn_order.first },
-    { label: "後攻", tally: stats.turn_order.second },
-  ];
-  $("headline").replaceChildren(...cards.map(({ label, tally }) =>
-    el("div", { class: "stat" }, [
-      el("div", { class: "label", text: label }),
-      el("div", { class: "value", text: tally.games ? pct(tally.winrate) : "—" }),
-      el("div", { class: "detail", text: `${tally.games} 戦 ${tally.wins} 勝 ${tally.losses} 敗` }),
-    ])));
+  $("headline").replaceChildren(
+    statCard("全体", stats.overall),
+    statCard("先攻", stats.turn_order.first),
+    statCard("後攻", stats.turn_order.second),
+  );
 }
 
 function renderMatrix(stats) {
@@ -177,40 +127,6 @@ function renderMatrix(stats) {
       class: games ? "" : "empty-cell",
     }));
     body.appendChild(row);
-  }
-  table.appendChild(body);
-}
-
-function renderBreakdown(tableId, rows, keyLabel) {
-  const table = $(tableId);
-  table.replaceChildren();
-  table.appendChild(el("thead", {}, [
-    el("tr", {}, [
-      el("th", { text: keyLabel }),
-      el("th", { text: "試合" }),
-      el("th", { text: "勝-敗" }),
-      el("th", { text: "勝率" }),
-    ]),
-  ]));
-
-  if (!rows.length) {
-    table.appendChild(el("tbody", {}, [
-      el("tr", {}, [el("td", { colspan: "4", class: "empty-cell", text: "データなし" })]),
-    ]));
-    return;
-  }
-
-  const body = el("tbody");
-  for (const row of rows) {
-    body.appendChild(el("tr", {}, [
-      el("td", { text: row.key }),
-      el("td", { text: String(row.games) }),
-      el("td", { text: `${row.wins}-${row.losses}` }),
-      el("td", {}, [
-        el("span", { class: "bar", style: `width: ${Math.round(row.winrate * 48)}px;` }),
-        document.createTextNode(` ${pct(row.winrate)}`),
-      ]),
-    ]));
   }
   table.appendChild(body);
 }
@@ -457,19 +373,29 @@ function renderCr(cr) {
 // 履歴の描画
 // ---------------------------------------------------------------------------
 
+/**
+ * 履歴の「大会」欄。ランク戦の記録では空になる。
+ * 大会名を付けずに記録した大会戦は、区別が付くよう「大会」とだけ出す。
+ */
+function describeEvent(record) {
+  if ((record.mode || "ladder") !== "tournament") return "";
+  const round = record.round ? `R${record.round}` : "";
+  return [record.event || "大会", round].filter(Boolean).join(" ");
+}
+
 function renderLog(records) {
   const table = $("log");
   table.replaceChildren();
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "CR", "メモ", ""].map(
+    el("tr", {}, ["日付", "大会", "自分", "相手", "先後", "結果", "ランク", "グレード", "CR", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
   if (!records.length) {
     table.appendChild(el("tbody", {}, [
-      el("tr", {}, [el("td", { colspan: "10", class: "empty-cell", text: "まだ戦績がありません。" })]),
+      el("tr", {}, [el("td", { colspan: "11", class: "empty-cell", text: "まだ戦績がありません。" })]),
     ]));
     return;
   }
@@ -480,9 +406,9 @@ function renderLog(records) {
 
   const body = el("tbody");
   for (const record of shown) {
-    const side = (cls, deck) => (deck ? `${cls} / ${deck}` : cls);
     body.appendChild(el("tr", { class: record.id === state.editingId ? "editing" : "" }, [
       el("td", { text: record.played_at }),
+      el("td", { class: "event", text: describeEvent(record) }),
       el("td", { text: side(record.my_class, record.my_deck) }),
       el("td", { text: side(record.opp_class, record.opp_deck) }),
       el("td", { text: TURN_LABEL[record.turn] || "" }),
@@ -531,6 +457,12 @@ function showFormError(message, fields = {}) {
 function startEdit(record) {
   state.editingId = record.id;
   $("field-id").value = record.id;
+  // 大会の項目はこの画面では編集しないが、送り返さないと更新のたびに消えてしまう。
+  // hidden で持って、そのまま PUT に載せる。
+  $("field-mode").value = record.mode || "";
+  $("field-event").value = record.event || "";
+  $("field-round").value = record.round === null || record.round === undefined ? "" : record.round;
+  $("field-opponent").value = record.opponent || "";
   $("field-played_at").value = record.played_at || "";
   $("field-rank").value = record.rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
@@ -557,6 +489,8 @@ function startEdit(record) {
 function cancelEdit() {
   state.editingId = null;
   $("field-id").value = "";
+  // 編集していた大会の記録を引きずらない。以後の記録はランク戦として入る。
+  for (const name of ["mode", "event", "round", "opponent"]) $(`field-${name}`).value = "";
   $("submit-button").textContent = "記録する";
   $("cancel-edit").hidden = true;
   showFormError("");
@@ -628,19 +562,38 @@ function collectDecks(records) {
   return { all: [...all].sort(), mine: [...mine].sort() };
 }
 
+/** 記録済みの大会名。新しい大会が上に来るよう、出てきた順の逆で並べる。 */
+function collectEvents(records) {
+  const events = [];
+  for (const record of records) {
+    if (record.event && !events.includes(record.event)) events.push(record.event);
+  }
+  return events.reverse();
+}
+
 function describeFilters() {
   const parts = [];
   if ($("filter-since").value) parts.push(`${$("filter-since").value} 以降`);
   if ($("filter-until").value) parts.push(`${$("filter-until").value} 以前`);
+  if ($("filter-mode").value) parts.push(MODE_LABEL[$("filter-mode").value]);
+  if ($("filter-event").value) parts.push($("filter-event").value);
   if ($("filter-my_class").value) parts.push($("filter-my_class").value);
   if ($("filter-my_deck").value) parts.push($("filter-my_deck").value);
   if ($("filter-grade").value) parts.push($("filter-grade").value);
   $("filter-summary").textContent = parts.length ? `適用中: ${parts.join(" / ")}` : "全期間・全クラス";
 }
 
+/** 全戦績から作る選択肢 (デッキ名と大会名)。絞り込み結果ではなく常に全件から作る。 */
+function fillDynamicOptions(records) {
+  const decks = collectDecks(records);
+  $("deck-list").replaceChildren(...decks.all.map((deck) => el("option", { value: deck })));
+  replaceOptions($("filter-my_deck"), decks.mine, { placeholder: "すべて" });
+  replaceOptions($("filter-event"), collectEvents(records), { placeholder: "すべて" });
+}
+
 async function refresh() {
-  const query = filterQuery();
-  // 絞り込み後の履歴と集計は同じ条件で取る。デッキ候補だけは全件から作る。
+  const query = toQuery(filterValues());
+  // 絞り込み後の履歴と集計は同じ条件で取る。デッキ・大会の候補だけは全件から作る。
   const [{ records }, stats, all] = await Promise.all([
     api(`/api/records${query}`),
     api(`/api/stats${query}`),
@@ -649,13 +602,26 @@ async function refresh() {
   state.records = records;
   state.stats = stats;
 
-  const decks = collectDecks(all.records);
-  $("deck-list").replaceChildren(...decks.all.map((deck) => el("option", { value: deck })));
-  replaceOptions($("filter-my_deck"), decks.mine, { placeholder: "すべて" });
-
+  fillDynamicOptions(all.records);
   describeFilters();
   renderStats(stats);
   renderLog(records);
+}
+
+/**
+ * URL のクエリを絞り込み欄に流し込む。大会の画面から「この大会の集計を見る」で
+ * 飛んできたときに、その大会だけを見た状態で開くために使う。
+ *
+ * デッキ名と大会名の選択肢は戦績から作るので、先に候補を埋めてから値を入れる。
+ */
+async function applyUrlFilters() {
+  const params = new URLSearchParams(location.search);
+  if (![...params.keys()].some((key) => Object.values(FILTERS).includes(key))) return;
+  const { records } = await api("/api/records");
+  fillDynamicOptions(records);
+  for (const [id, name] of Object.entries(FILTERS)) {
+    if (params.has(name)) $(id).value = params.get(name);
+  }
 }
 
 async function init() {
@@ -671,7 +637,7 @@ async function init() {
   $("filter-grade-field").hidden = state.config.grades.length === 0;
   syncGradeField();
 
-  $("field-played_at").value = new Date().toLocaleDateString("sv-SE"); // ローカル時刻の YYYY-MM-DD
+  $("field-played_at").value = today();
   $("entry-form").addEventListener("submit", submitForm);
   $("field-rank").addEventListener("change", syncGradeField);
   $("field-cr").addEventListener("input", autoSetGradeFromCr);
@@ -700,6 +666,7 @@ async function init() {
     refresh().catch(reportFatal);
   });
 
+  await applyUrlFilters();
   await refresh();
 }
 

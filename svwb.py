@@ -48,12 +48,20 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TURNS = ("first", "second")
 RESULTS = ("win", "loss")
 
+#: 記録した画面。ランク戦 (index.html) と大会 (tournament.html) を分ける。
+#: mode を持たない古い戦績はすべてランク戦として扱う。
+MODES = ("ladder", "tournament")
+DEFAULT_MODE = "ladder"
+
 #: 入力を受け付ける自由記述フィールドの最大長。
 MAX_TEXT = 120
 MAX_NOTE = 1000
 
 #: CR の受け付け上限。ゲーム側の上限ではなく、桁の打ち間違いを弾くための入力ガード。
 MAX_CR = 99999
+
+#: ラウンド数の受け付け上限。CR と同じく打ち間違いを弾くための入力ガード。
+MAX_ROUND = 99
 
 
 # --------------------------------------------------------------------------
@@ -194,6 +202,40 @@ def validate_record(payload: dict, config: dict) -> dict:
                 else:
                     record["cr"] = cr
 
+    # 大会 (2 デッキ BO1) 用の項目。ランク戦の記録には付かない。
+    mode = payload.get("mode") or DEFAULT_MODE
+    if mode not in MODES:
+        errors["mode"] = "モードの選択肢にありません"
+        mode = DEFAULT_MODE
+    record["mode"] = mode
+    tournament = mode == "tournament"
+
+    # 大会名・対戦相手・ラウンドは大会モード専用。ランク戦の記録に紛れ込むと
+    # 「この大会だけの集計」が信用できなくなるので、ここで弾く。
+    for field in ("event", "opponent"):
+        value = _text(payload.get(field), field, MAX_TEXT, errors)
+        if value and not tournament:
+            errors[field] = "大会モードのときだけ記録できます"
+        record[field] = value
+
+    record["round"] = None
+    round_raw = payload.get("round")
+    if round_raw is not None and round_raw != "":
+        if isinstance(round_raw, bool):
+            errors["round"] = "整数で指定してください"
+        else:
+            try:
+                round_no = int(round_raw)
+            except (TypeError, ValueError):
+                errors["round"] = "整数で指定してください"
+            else:
+                if not 1 <= round_no <= MAX_ROUND:
+                    errors["round"] = f"1〜{MAX_ROUND} の範囲で指定してください"
+                elif not tournament:
+                    errors["round"] = "大会モードのときだけ記録できます"
+                else:
+                    record["round"] = round_no
+
     if errors:
         raise ValidationError(errors)
     return record
@@ -304,8 +346,12 @@ def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)") -> 
 
 def filter_records(records: list[dict], since: str = "", until: str = "",
                    my_class: str = "", my_deck: str = "", opp_class: str = "",
-                   grade: str = "") -> list[dict]:
-    """期間 / クラス / デッキ / グレードで絞り込む。空文字の条件は無視する。"""
+                   grade: str = "", mode: str = "", event: str = "") -> list[dict]:
+    """期間 / クラス / デッキ / グレード / モード / 大会で絞り込む。
+
+    空文字の条件は無視する。mode を持たない古い戦績はランク戦として扱うので、
+    `mode="ladder"` には大会機能を足す前の記録も含まれる。
+    """
     out = []
     for record in records:
         played_at = record.get("played_at", "")
@@ -320,6 +366,10 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
         if opp_class and record.get("opp_class") != opp_class:
             continue
         if grade and (record.get("grade") or "") != grade:
+            continue
+        if mode and (record.get("mode") or DEFAULT_MODE) != mode:
+            continue
+        if event and (record.get("event") or "") != event:
             continue
         out.append(record)
     return out
@@ -442,7 +492,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _query_filters(self, query: dict[str, list[str]]) -> dict:
         return {name: (query.get(name) or [""])[0]
-                for name in ("since", "until", "my_class", "my_deck", "opp_class", "grade")}
+                for name in ("since", "until", "my_class", "my_deck", "opp_class",
+                             "grade", "mode", "event")}
 
     def _record_id(self, path: str) -> str:
         return unquote(path[len("/api/records/"):]).strip("/")
@@ -648,6 +699,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         since=args.since or "", until=args.until or "",
         my_class=args.my_class or "", my_deck=args.my_deck or "",
         opp_class=args.opp_class or "", grade=args.grade or "",
+        mode=args.mode or "", event=args.event or "",
     )
     stats = compute_stats(records, config["classes"], config["grades"])
 
@@ -734,6 +786,8 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
     stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
     stats.add_argument("--grade", help="CR グレードで絞り込む (EPIC 等)")
+    stats.add_argument("--mode", choices=MODES, help="ランク戦 / 大会のどちらかに絞り込む")
+    stats.add_argument("--event", help="大会名で絞り込む")
     stats.add_argument("--json", action="store_true", help="JSON で出力する")
     stats.set_defaults(func=cmd_stats)
     return parser
