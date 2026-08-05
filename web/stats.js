@@ -212,36 +212,6 @@ function renderPie(stats, scope) {
   renderPieLegend(slices, total, label);
 }
 
-/** CR の推移要約。CR を記録した戦績が無ければ行ごと隠す。 */
-function renderCr(cr) {
-  $("cr-row").hidden = !cr;
-  if (!cr) return;
-  const sign = cr.delta > 0 ? "+" : "";
-  $("cr-row").replaceChildren(
-    el("div", { class: "stat" }, [
-      el("div", { class: "label", text: "現在 CR" }),
-      el("div", { class: "value", text: String(cr.latest) }),
-      el("div", { class: "detail" }, [
-        el("span", {
-          class: cr.delta > 0 ? "delta-up" : cr.delta < 0 ? "delta-down" : "",
-          text: `${sign}${cr.delta}`,
-        }),
-        document.createTextNode(` / ${cr.games} 戦`),
-      ]),
-    ]),
-    el("div", { class: "stat" }, [
-      el("div", { class: "label", text: "最高 CR" }),
-      el("div", { class: "value", text: String(cr.max) }),
-      el("div", { class: "detail", text: `最低 ${cr.min}` }),
-    ]),
-    el("div", { class: "stat" }, [
-      el("div", { class: "label", text: "期間の始点" }),
-      el("div", { class: "value", text: String(cr.first) }),
-      el("div", { class: "detail", text: "絞り込み範囲の最初の記録" }),
-    ]),
-  );
-}
-
 /**
  * 集計をまとめて描く。ページに無いセクションは飛ばす。
  * headline は先頭のカードの見出し ("全体" / "この大会" など)。
@@ -258,11 +228,10 @@ function renderStats(stats, { pieScope = "my", headline = "全体" } = {}) {
   if (has("by-deck")) renderBreakdown("by-deck", stats.by_my_deck, "デッキ");
   if (has("by-opp")) renderBreakdown("by-opp", stats.by_opp_class, "相手クラス");
 
-  // グレードと CR はランクマッチ帯にしか無い。大会の画面にはセクションごと無い。
+  // グレードはランクマッチ帯にしか無い。大会の画面にはセクションごと無い。
   if (has("grade-section")) {
     const grades = stats.by_grade || [];
     $("grade-section").hidden = grades.length === 0;
     if (grades.length) renderBreakdown("by-grade", grades, "グレード");
   }
-  if (has("cr-row")) renderCr(stats.cr);
 }

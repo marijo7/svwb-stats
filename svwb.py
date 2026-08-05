@@ -89,10 +89,6 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     グラマス昇格後にしか存在しないので、この値と一致するランクのときだけ
     グレードを受け付ける。空にすると結び付けを行わない。
 
-    `grade_thresholds` は「そのグレードに必要な最低 CR」。CR を入力したときの
-    グレード自動設定に使う。CR だけでは決まらないグレード (BEYOND は LEGEND の
-    うちランキング上位のみ) は載せない。載っていないグレードは自動設定の対象外に
-    なり、手で選んだ値として扱われる。
     """
     with path.open(encoding="utf-8") as fp:
         config = json.load(fp)
@@ -105,16 +101,8 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     if grade_rank and grade_rank not in ranks:
         raise ValueError(f"{path}: grade_rank '{grade_rank}' が ranks にありません")
 
-    thresholds: dict[str, int] = {}
-    for grade, min_cr in (config.get("grade_thresholds") or {}).items():
-        if grade not in grades:
-            raise ValueError(f"{path}: grade_thresholds の '{grade}' が grades にありません")
-        if not isinstance(min_cr, int) or isinstance(min_cr, bool):
-            raise ValueError(f"{path}: grade_thresholds['{grade}'] は整数で指定してください")
-        thresholds[str(grade)] = min_cr
-
     return {"classes": classes, "ranks": ranks, "grades": grades,
-            "grade_rank": grade_rank, "grade_thresholds": thresholds}
+            "grade_rank": grade_rank}
 
 
 # --------------------------------------------------------------------------
@@ -194,25 +182,26 @@ def validate_record(payload: dict, config: dict) -> dict:
         errors["grade"] = f"グレードは {grade_rank} のときだけ記録できます"
     record["grade"] = grade if isinstance(grade, str) else ""
 
-    # CR はグレードと同じくグラマス帯のみ。未入力は "" ではなく None で持つ
-    # (数値フィールドなので、空文字より null のほうが後段で扱いやすい)。
-    record["cr"] = None
-    cr_raw = payload.get("cr")
+    # 相手の CR。グレードと同じくグラマス帯のみ (CR 自体がその帯にしか無い)。
+    # 未入力は "" ではなく None で持つ (数値フィールドなので、空文字より null の
+    # ほうが後段で扱いやすい)。
+    record["opp_cr"] = None
+    cr_raw = payload.get("opp_cr")
     if cr_raw is not None and cr_raw != "":
         if isinstance(cr_raw, bool):
-            errors["cr"] = "整数で指定してください"
+            errors["opp_cr"] = "整数で指定してください"
         else:
             try:
-                cr = int(cr_raw)
+                opp_cr = int(cr_raw)
             except (TypeError, ValueError):
-                errors["cr"] = "整数で指定してください"
+                errors["opp_cr"] = "整数で指定してください"
             else:
-                if not 0 <= cr <= MAX_CR:
-                    errors["cr"] = f"0〜{MAX_CR} の範囲で指定してください"
+                if not 0 <= opp_cr <= MAX_CR:
+                    errors["opp_cr"] = f"0〜{MAX_CR} の範囲で指定してください"
                 elif grade_rank and record["rank"] != grade_rank:
-                    errors["cr"] = f"CR は {grade_rank} のときだけ記録できます"
+                    errors["opp_cr"] = f"相手 CR は {grade_rank} のときだけ記録できます"
                 else:
-                    record["cr"] = cr
+                    record["opp_cr"] = opp_cr
 
     # 大会 (2 デッキ BO1) 用の項目。ランクマッチの記録には付かない。
     mode = payload.get("mode") or DEFAULT_MODE
@@ -400,25 +389,6 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
     return out
 
 
-def _cr_summary(records: list[dict]) -> dict | None:
-    """CR を記録した戦績から推移の要約を作る。1 件も無ければ None。
-
-    records は played_at 順に並んでいる前提 (RecordStore.list がそう返す)。
-    delta は「絞り込んだ期間で CR がいくつ動いたか」で、最初と最後の差。
-    """
-    values = [r["cr"] for r in records if isinstance(r.get("cr"), int)]
-    if not values:
-        return None
-    return {
-        "games": len(values),
-        "first": values[0],
-        "latest": values[-1],
-        "delta": values[-1] - values[0],
-        "min": min(values),
-        "max": max(values),
-    }
-
-
 def _order_by(rows: list[dict], order: list[str]) -> list[dict]:
     """rows を指定の並び (梯子順) に並べ替える。order に無いキーは末尾へ。"""
     rank = {key: i for i, key in enumerate(order)}
@@ -471,7 +441,6 @@ def compute_stats(records: list[dict], classes: list[str],
         # BEYOND という順序自体が読む側の求める情報なので。
         "by_grade": _order_by(
             _breakdown([r for r in records if r.get("grade")], "grade"), grades or []),
-        "cr": _cr_summary(records),
     }
 
 
@@ -787,13 +756,6 @@ def cmd_stats(args: argparse.Namespace) -> int:
             print(_format_tally(row["key"], row, width))
         print()
 
-    cr = stats["cr"]
-    if cr:
-        sign = "+" if cr["delta"] >= 0 else ""
-        print("== CR ==")
-        print(f"現在   {cr['latest']}  ({sign}{cr['delta']} / {cr['games']} 戦)")
-        print(f"最高   {cr['max']}")
-        print(f"最低   {cr['min']}")
     return 0
 
 

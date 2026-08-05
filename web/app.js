@@ -32,7 +32,7 @@ const FILTER_IDS = Object.keys(FILTERS);
 const LOG_PAGE_SIZE = 30;
 
 const state = {
-  config: { classes: [], ranks: [], grades: [], grade_rank: "", grade_thresholds: {} },
+  config: { classes: [], ranks: [], grades: [], grade_rank: "" },
   records: [],
   stats: null,
   editingId: null,
@@ -62,49 +62,12 @@ function syncGradeField() {
   $("grade-hint").textContent = grades.length === 0 ? "未設定"
     : active ? "任意" : `${gradeRank} のみ`;
 
-  // CR もグラマス帯のみ。グレードと違い config の一覧に依存しないので、
-  // ランクの条件だけで判定する。
-  const cr = $("field-cr");
+  // 相手 CR もグラマス帯のみ (CR 自体がその帯にしか無い)。グレードと違い
+  // config の一覧に依存しないので、ランクの条件だけで判定する。
+  const cr = $("field-opp_cr");
   cr.disabled = !atGradeRank;
   if (!atGradeRank) cr.value = "";
   $("cr-hint").textContent = atGradeRank ? "任意" : `${gradeRank} のみ`;
-}
-
-/** config の閾値 (そのグレードに必要な最低 CR) から、この CR のグレードを引く。 */
-function gradeForCr(cr) {
-  let derived = null;
-  let highest = -Infinity;
-  for (const [grade, minCr] of Object.entries(state.config.grade_thresholds || {})) {
-    if (cr >= minCr && minCr > highest) {
-      derived = grade;
-      highest = minCr;
-    }
-  }
-  return derived;
-}
-
-/**
- * CR を入れたらグレードを自動で合わせる。
- *
- * 閾値を持たないグレード (BEYOND は LEGEND のうちランキング上位のみで、CR だけ
- * では決まらない) が選ばれているときは触らない。自動設定が毎回 LEGEND へ
- * 引き戻してしまうため。CR を消しただけのときもグレードは残す。
- */
-function autoSetGradeFromCr() {
-  const select = $("field-grade");
-  const thresholds = state.config.grade_thresholds || {};
-  if (select.disabled || !Object.keys(thresholds).length) return;
-  if (select.value && !(select.value in thresholds)) return;
-
-  const raw = $("field-cr").value.trim();
-  if (raw === "") return;
-  const cr = Number(raw);
-  if (!Number.isInteger(cr) || cr < 0) return;
-
-  const derived = gradeForCr(cr);
-  if (!derived) return;
-  select.value = derived;
-  $("grade-hint").textContent = "CR から自動";
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +80,7 @@ function renderLog(records) {
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "CR", "メモ", ""].map(
+    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "相手 CR", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
@@ -142,7 +105,7 @@ function renderLog(records) {
       el("td", { class: record.result, text: RESULT_LABEL[record.result] || "" }),
       el("td", { text: record.rank || "" }),
       el("td", { text: record.grade || "" }),
-      el("td", { text: record.cr === null || record.cr === undefined ? "" : String(record.cr) }),
+      el("td", { text: record.opp_cr === null || record.opp_cr === undefined ? "" : String(record.opp_cr) }),
       el("td", { class: "note", title: record.note || "", text: record.note || "" }),
       el("td", {}, [
         el("button", { class: "link", type: "button", text: "編集", onclick: () => startEdit(record) }),
@@ -172,7 +135,7 @@ function showFormError(message, fields = {}) {
   const box = $("form-error");
   box.hidden = !message;
   box.textContent = message || "";
-  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "grade", "cr", "note"]) {
+  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "grade", "opp_cr", "note"]) {
     $(`field-${name}`).classList.toggle("invalid", Boolean(fields[name]));
   }
   if (Object.keys(fields).length) {
@@ -188,7 +151,7 @@ function startEdit(record) {
   $("field-rank").value = record.rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
   $("field-grade").value = record.grade || "";
-  $("field-cr").value = record.cr === null || record.cr === undefined ? "" : record.cr;
+  $("field-opp_cr").value = record.opp_cr === null || record.opp_cr === undefined ? "" : record.opp_cr;
   $("field-my_class").value = record.my_class || "";
   $("field-my_deck").value = record.my_deck || "";
   $("field-opp_class").value = record.opp_class || "";
@@ -339,9 +302,6 @@ async function init() {
   $("field-played_at").value = today();
   $("entry-form").addEventListener("submit", submitForm);
   $("field-rank").addEventListener("change", syncGradeField);
-  $("field-cr").addEventListener("input", autoSetGradeFromCr);
-  // 手で選び直したら「CR から自動」の表示は消す。
-  $("field-grade").addEventListener("change", syncGradeField);
   $("cancel-edit").addEventListener("click", cancelEdit);
   $("log-more").addEventListener("click", () => {
     state.logExpanded = true;

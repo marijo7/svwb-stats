@@ -36,7 +36,7 @@ def make_record(**overrides):
         "result": "win",
         "rank": "",
         "grade": "",
-        "cr": None,
+        "opp_cr": None,
         "note": "",
     }
     record.update(overrides)
@@ -63,38 +63,6 @@ class TestConfig(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             svwb.load_config(path)
         self.assertIn("grade_rank", str(ctx.exception))
-
-    def test_shipped_grade_thresholds(self):
-        thresholds = svwb.load_config()["grade_thresholds"]
-        self.assertEqual(thresholds,
-                         {"EPIC未満": 0, "EPIC": 1650, "ULTIMATE": 1750, "LEGEND": 1850})
-        # BEYOND は LEGEND のうちランキング上位のみで CR から決まらない。
-        # 閾値を持たせると自動設定が誤って BEYOND を付けてしまう。
-        self.assertNotIn("BEYOND", thresholds)
-
-    def test_grade_thresholds_must_reference_known_grades(self):
-        bad = {"classes": ["エルフ"], "ranks": ["Master"],
-               "grades": ["EPIC"], "grade_thresholds": {"MYTHIC": 1650}}
-        path = Path(tempfile.mkdtemp()) / "config.json"
-        path.write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
-        with self.assertRaises(ValueError) as ctx:
-            svwb.load_config(path)
-        self.assertIn("grade_thresholds", str(ctx.exception))
-
-    def test_grade_thresholds_must_be_integers(self):
-        for bad_value in ("1650", 1650.5, True, None):
-            bad = {"classes": ["エルフ"], "ranks": ["Master"],
-                   "grades": ["EPIC"], "grade_thresholds": {"EPIC": bad_value}}
-            path = Path(tempfile.mkdtemp()) / "config.json"
-            path.write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
-            with self.subTest(bad_value=bad_value), self.assertRaises(ValueError):
-                svwb.load_config(path)
-
-    def test_grade_thresholds_default_to_empty(self):
-        minimal = {"classes": ["エルフ"], "ranks": ["Master"]}
-        path = Path(tempfile.mkdtemp()) / "config.json"
-        path.write_text(json.dumps(minimal, ensure_ascii=False), encoding="utf-8")
-        self.assertEqual(svwb.load_config(path)["grade_thresholds"], {})
 
     def test_grades_default_to_empty(self):
         minimal = {"classes": ["エルフ"], "ranks": ["Master"]}
@@ -169,44 +137,44 @@ class TestValidation(unittest.TestCase):
                 record = svwb.validate_record(make_record(rank=rank, grade=""), CONFIG)
                 self.assertEqual(record["grade"], "")
 
-    def test_cr_is_accepted_at_grand_master(self):
-        record = svwb.validate_record(make_record(rank="Grand Master", cr=1520), CONFIG)
-        self.assertEqual(record["cr"], 1520)
+    def test_opp_cr_is_accepted_at_grand_master(self):
+        record = svwb.validate_record(make_record(rank="Grand Master", opp_cr=1520), CONFIG)
+        self.assertEqual(record["opp_cr"], 1520)
 
-    def test_cr_accepts_numeric_strings_from_the_form(self):
+    def test_opp_cr_accepts_numeric_strings_from_the_form(self):
         # <input type="number"> は文字列で送られてくる。
-        record = svwb.validate_record(make_record(rank="Grand Master", cr="1500"), CONFIG)
-        self.assertEqual(record["cr"], 1500)
+        record = svwb.validate_record(make_record(rank="Grand Master", opp_cr="1500"), CONFIG)
+        self.assertEqual(record["opp_cr"], 1500)
 
-    def test_cr_defaults_to_none(self):
+    def test_opp_cr_defaults_to_none(self):
         for empty in (None, ""):
             with self.subTest(empty=empty):
-                self.assertIsNone(svwb.validate_record(make_record(cr=empty), CONFIG)["cr"])
+                self.assertIsNone(svwb.validate_record(make_record(opp_cr=empty), CONFIG)["opp_cr"])
         payload = {"my_class": "エルフ", "opp_class": "ロイヤル", "turn": "first", "result": "win"}
-        self.assertIsNone(svwb.validate_record(payload, CONFIG)["cr"])
+        self.assertIsNone(svwb.validate_record(payload, CONFIG)["opp_cr"])
 
-    def test_rejects_non_integer_cr(self):
+    def test_rejects_non_integer_opp_cr(self):
         for bad in ("abc", "15.5", [], True):
             with self.subTest(bad=bad), self.assertRaises(svwb.ValidationError) as ctx:
-                svwb.validate_record(make_record(rank="Grand Master", cr=bad), CONFIG)
-            self.assertIn("cr", ctx.exception.errors)
+                svwb.validate_record(make_record(rank="Grand Master", opp_cr=bad), CONFIG)
+            self.assertIn("opp_cr", ctx.exception.errors)
 
-    def test_rejects_out_of_range_cr(self):
+    def test_rejects_out_of_range_opp_cr(self):
         for bad in (-1, svwb.MAX_CR + 1):
             with self.subTest(bad=bad), self.assertRaises(svwb.ValidationError) as ctx:
-                svwb.validate_record(make_record(rank="Grand Master", cr=bad), CONFIG)
-            self.assertIn("cr", ctx.exception.errors)
+                svwb.validate_record(make_record(rank="Grand Master", opp_cr=bad), CONFIG)
+            self.assertIn("opp_cr", ctx.exception.errors)
 
-    def test_rejects_cr_below_grand_master(self):
+    def test_rejects_opp_cr_below_grand_master(self):
         for rank in ("", "Master"):
             with self.subTest(rank=rank), self.assertRaises(svwb.ValidationError) as ctx:
-                svwb.validate_record(make_record(rank=rank, cr=1500), CONFIG)
-            self.assertIn("cr", ctx.exception.errors)
+                svwb.validate_record(make_record(rank=rank, opp_cr=1500), CONFIG)
+            self.assertIn("opp_cr", ctx.exception.errors)
 
-    def test_cr_zero_is_valid(self):
+    def test_opp_cr_zero_is_valid(self):
         # 0 は「未入力」ではなく有効な値として通す。
         self.assertEqual(
-            svwb.validate_record(make_record(rank="Grand Master", cr=0), CONFIG)["cr"], 0)
+            svwb.validate_record(make_record(rank="Grand Master", opp_cr=0), CONFIG)["opp_cr"], 0)
 
     def test_grade_rank_coupling_is_optional(self):
         # grade_rank が空の config ではランクとの結び付けを行わない。
@@ -540,38 +508,6 @@ class TestStats(unittest.TestCase):
     def test_grade_breakdown_is_empty_without_grades(self):
         # グラマス未到達なら空。UI 側はこれを見てセクションごと隠す。
         self.assertEqual(svwb.compute_stats(self.records, self.classes)["by_grade"], [])
-
-    def test_cr_summary(self):
-        records = [
-            make_record(played_at="2026-08-01", rank="Grand Master", cr=1500),
-            make_record(played_at="2026-08-02", rank="Grand Master", cr=1580),
-            make_record(played_at="2026-08-03", rank="Grand Master", cr=1455),
-            make_record(played_at="2026-08-04", rank="Grand Master", cr=1530),
-        ]
-        cr = svwb.compute_stats(records, self.classes)["cr"]
-        self.assertEqual(cr, {"games": 4, "first": 1500, "latest": 1530,
-                              "delta": 30, "min": 1455, "max": 1580})
-
-    def test_cr_summary_ignores_records_without_cr(self):
-        records = [
-            make_record(played_at="2026-08-01", rank="Master"),
-            make_record(played_at="2026-08-02", rank="Grand Master", cr=1600),
-            make_record(played_at="2026-08-03", rank="Master"),
-        ]
-        cr = svwb.compute_stats(records, self.classes)["cr"]
-        self.assertEqual(cr["games"], 1)
-        self.assertEqual(cr["delta"], 0)
-
-    def test_cr_summary_is_none_without_any_cr(self):
-        # UI 側はこれを見て CR 行ごと隠す。
-        self.assertIsNone(svwb.compute_stats(self.records, self.classes)["cr"])
-
-    def test_cr_delta_can_be_negative(self):
-        records = [
-            make_record(played_at="2026-08-01", rank="Grand Master", cr=1700),
-            make_record(played_at="2026-08-02", rank="Grand Master", cr=1620),
-        ]
-        self.assertEqual(svwb.compute_stats(records, self.classes)["cr"]["delta"], -80)
 
     def test_my_class_breakdown(self):
         # ブラウザのクラス別円グラフがこの内訳をそのまま描く。
