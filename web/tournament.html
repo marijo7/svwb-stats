@@ -117,17 +117,20 @@
               </label>
             </div>
 
-            <div class="grid">
-              <label class="field">
-                <span>もう 1 デッキ クラス <em>任意</em></span>
-                <select id="field-opp_class2"></select>
-              </label>
-              <label class="field">
-                <span>もう 1 デッキ 名前 <em>任意</em></span>
-                <input type="text" id="field-opp_deck2" list="deck-list" maxlength="120"
-                       placeholder="例: 財宝ドラゴン">
-              </label>
-            </div>
+            <fieldset class="deck-slot">
+              <legend>相手のもう 1 デッキ <em>任意</em></legend>
+              <div class="grid">
+                <label class="field">
+                  <span>クラス</span>
+                  <select id="field-opp_class2"></select>
+                </label>
+                <label class="field">
+                  <span>デッキ名</span>
+                  <input type="text" id="field-opp_deck2" list="deck-list" maxlength="120"
+                         placeholder="例: 財宝ドラゴン">
+                </label>
+              </div>
+            </fieldset>
 
             <div class="grid">
               <fieldset class="field toggle-group">
