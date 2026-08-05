@@ -178,11 +178,17 @@ main > *, .workspace > *, .workspace-col > * { min-width: 0; }
 /* ---------- form ---------- */
 
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
 .grid-5 { grid-template-columns: repeat(5, 1fr); }
 
 /* 基準はカードの内寸 (padding の内側)。1 段組みならおおよそ「画面幅 − 80px」。
    日付や select が潰れない下限は 1 列あたり 170px 前後なので、そこを割る前に
    列を減らす。最後の 1 列化はスマホ相当の幅だけ。 */
+/* 4 列は 1 列 170px を切る手前 (4 列 + 隙間で約 720px) で 2 列にする。
+   3 列にすると 1 つだけ次の行に落ちるので、一段飛ばす。 */
+@container (max-width: 720px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
 @container (max-width: 820px) {
   .grid-5 { grid-template-columns: repeat(3, 1fr); }
 }
@@ -190,7 +196,7 @@ main > *, .workspace > *, .workspace-col > * { min-width: 0; }
   .grid-5 { grid-template-columns: repeat(2, 1fr); }
 }
 @container (max-width: 380px) {
-  .grid, .grid-5 { grid-template-columns: 1fr; }
+  .grid, .grid-4, .grid-5 { grid-template-columns: 1fr; }
 }
 
 /* 大会設定のデッキ枠。クラスとデッキ名は 1 デッキ分の組なので、枠で囲って

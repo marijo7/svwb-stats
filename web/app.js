@@ -29,7 +29,6 @@ const FILTERS = {
   "filter-until": "until",
   "filter-my_class": "my_class",
   "filter-my_deck": "my_deck",
-  "filter-grade": "opp_grade",
 };
 const FILTER_IDS = Object.keys(FILTERS);
 
@@ -253,7 +252,6 @@ function describeFilters() {
   if ($("filter-until").value) parts.push(`${$("filter-until").value} 以前`);
   if ($("filter-my_class").value) parts.push($("filter-my_class").value);
   if ($("filter-my_deck").value) parts.push($("filter-my_deck").value);
-  if ($("filter-grade").value) parts.push($("filter-grade").value);
   $("filter-summary").textContent = parts.length ? `適用中: ${parts.join(" / ")}` : "全期間・全クラス";
 }
 
@@ -296,9 +294,6 @@ async function init() {
   replaceOptions($("field-opp_rank"), state.config.ranks, { placeholder: "未設定" });
   replaceOptions($("field-opp_grade"), state.config.grades, { placeholder: "未設定" });
   replaceOptions($("filter-my_class"), state.config.classes, { placeholder: "すべて" });
-  replaceOptions($("filter-grade"), state.config.grades, { placeholder: "すべて" });
-  // グレードが未定義の config なら絞り込み欄ごと出さない。
-  $("filter-grade-field").hidden = state.config.grades.length === 0;
   syncGradeField();
 
   $("field-played_at").value = today();
