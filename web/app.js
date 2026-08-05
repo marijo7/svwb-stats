@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * svwb-stats のランク戦画面。
+ * svwb-stats のランクマッチ画面。
  *
  * サーバー (svwb.py serve) の JSON API だけを相手にする薄い画面で、
  * 勝率などの計算は一切ここではやらず /api/stats の結果を描画する。
@@ -28,7 +28,7 @@ const FILTERS = {
 const FILTER_IDS = Object.keys(FILTERS);
 
 /** モードの表示名。値は API / 保存されるデータと同じ。 */
-const MODE_LABEL = { ladder: "ランク戦", tournament: "大会" };
+const MODE_LABEL = { ladder: "ランクマッチ", tournament: "大会" };
 
 /**
  * 大会の画面 (tournament.html) でしか入力しない項目。この画面では編集しないが、
@@ -380,7 +380,7 @@ function renderCr(cr) {
 // ---------------------------------------------------------------------------
 
 /**
- * 履歴の「大会」欄。ランク戦の記録では空になる。
+ * 履歴の「大会」欄。ランクマッチの記録では空になる。
  * 大会名を付けずに記録した大会戦は、区別が付くよう「大会」とだけ出す。
  */
 function describeEvent(record) {
@@ -495,7 +495,7 @@ function startEdit(record) {
 function cancelEdit() {
   state.editingId = null;
   $("field-id").value = "";
-  // 編集していた大会の記録を引きずらない。以後の記録はランク戦として入る。
+  // 編集していた大会の記録を引きずらない。以後の記録はランクマッチとして入る。
   for (const name of HIDDEN_TOURNAMENT_FIELDS) $(`field-${name}`).value = "";
   $("submit-button").textContent = "記録する";
   $("cancel-edit").hidden = true;

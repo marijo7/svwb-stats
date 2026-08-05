@@ -272,7 +272,7 @@ class TestTournamentFields(unittest.TestCase):
         self.assertIn("mode", ctx.exception.errors)
 
     def test_rejects_tournament_fields_on_ladder_records(self):
-        # ランク戦の記録に大会名が紛れると「この大会だけの集計」が信用できなくなる。
+        # ランクマッチの記録に大会名が紛れると「この大会だけの集計」が信用できなくなる。
         for field, value in (("event", "杯"), ("opponent", "たろう"), ("round", 1),
                              ("opp_class2", "ドラゴン"), ("opp_deck2", "財宝ドラゴン")):
             with self.subTest(field=field), self.assertRaises(svwb.ValidationError) as ctx:
@@ -299,7 +299,7 @@ class TestTournamentFields(unittest.TestCase):
                 self.assertIsNone(record["round"])
 
     def test_tournament_record_keeps_the_shared_shape(self):
-        # 集計はランク戦と共用なので、大会の戦績も同じキーを持つ必要がある。
+        # 集計はランクマッチと共用なので、大会の戦績も同じキーを持つ必要がある。
         ladder = svwb.validate_record(make_record(), CONFIG)
         tournament = svwb.validate_record(make_record(mode="tournament", event="杯"), CONFIG)
         self.assertEqual(set(ladder), set(tournament))
@@ -674,11 +674,11 @@ class TestHttpApi(unittest.TestCase):
         status, body = self.request("GET", "/api/stats?mode=tournament&event=WB%E6%9D%AF")
         self.assertEqual(status, 200)
         self.assertEqual(body["overall"], {"games": 2, "wins": 1, "losses": 1, "winrate": 0.5})
-        # 集計はランク戦と同じもの。持ち込んだ 2 デッキの成績がそのまま出る。
+        # 集計はランクマッチと同じもの。持ち込んだ 2 デッキの成績がそのまま出る。
         self.assertEqual({row["key"] for row in body["by_my_deck"]},
                          {"連携ロイヤル", "進化エルフ"})
 
-        # ランク戦の集計に大会の戦績は混ざらない。
+        # ランクマッチの集計に大会の戦績は混ざらない。
         status, body = self.request("GET", "/api/stats?mode=ladder")
         self.assertEqual(status, 200)
         self.assertNotIn("連携ロイヤル", {row["key"] for row in body["by_my_deck"]})

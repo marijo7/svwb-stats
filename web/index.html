@@ -12,7 +12,7 @@
     <h1>svwb-stats</h1>
     <p class="subtitle">Shadowverse: Worlds Beyond 戦績</p>
     <nav class="tabs" aria-label="画面">
-      <a href="/" class="active" aria-current="page">ランク戦</a>
+      <a href="/" class="active" aria-current="page">ランクマッチ</a>
       <a href="/tournament.html">大会 (2 デッキ BO1)</a>
     </nav>
     <div class="topbar-summary" id="topbar-summary" aria-live="polite"></div>
@@ -31,7 +31,7 @@
           <form id="entry-form" autocomplete="off">
             <input type="hidden" name="id" id="field-id">
             <!-- 大会 (tournament.html) で記録した戦績をこの画面から編集するとき、
-                 大会の項目を送り返すために持っておく。新規入力では空 = ランク戦。 -->
+                 大会の項目を送り返すために持っておく。新規入力では空 = ランクマッチ。 -->
             <input type="hidden" name="mode" id="field-mode">
             <input type="hidden" name="event" id="field-event">
             <input type="hidden" name="round" id="field-round">
@@ -138,7 +138,7 @@
               <span>モード</span>
               <select id="filter-mode">
                 <option value="">すべて</option>
-                <option value="ladder">ランク戦</option>
+                <option value="ladder">ランクマッチ</option>
                 <option value="tournament">大会</option>
               </select>
             </label>

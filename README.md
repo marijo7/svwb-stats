@@ -5,7 +5,7 @@ Shadowverse: Worlds Beyond の戦績管理ツール。ブラウザで 1 試合�
 - **依存なし** — Python 3.9 以降の標準ライブラリだけで動く。`pip install` も `npm install` も不要
 - **データはテキスト** — 戦績は `data/records.jsonl` に 1 行 1 試合で入る。git に乗せればそのまま履歴になる
 - **数字は 1 か所で計算** — 集計は Python 側にあり、ブラウザと CLI (`svwb.py stats`) で同じ値が出る
-- **ランク戦と大会** — 画面上部のタブで切り替える。大会 (2 デッキ BO1) 用の入力画面があり、記録は同じファイル・同じ集計に乗る
+- **ランクマッチと大会** — 画面上部のタブで切り替える。大会 (2 デッキ BO1) 用の入力画面があり、記録は同じファイル・同じ集計に乗る
 
 ## 使う (Windows)
 
@@ -36,7 +36,7 @@ python3 svwb.py stats                       # 全期間
 python3 svwb.py stats --since 2026-08-01    # 期間で絞る
 python3 svwb.py stats --my-class エルフ      # クラスで絞る
 python3 svwb.py stats --grade EPIC          # CR グレードで絞る
-python3 svwb.py stats --mode ladder         # ランク戦だけ (--mode tournament で大会だけ)
+python3 svwb.py stats --mode ladder         # ランクマッチだけ (--mode tournament で大会だけ)
 python3 svwb.py stats --event WB杯           # 大会名で絞る
 python3 svwb.py stats --json                # JSON で出す
 ```
@@ -95,7 +95,7 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `grade` | | CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
 | `cr` | | CR の数値。`rank` が `Grand Master` のときだけ入力できる。未入力は `null` |
 | `note` | | メモ |
-| `mode` | | `ladder` (ランク戦、既定) / `tournament` (大会)。どちらの画面で記録したか |
+| `mode` | | `ladder` (ランクマッチ、既定) / `tournament` (大会)。どちらの画面で記録したか |
 | `event` | | 大会名。`mode` が `tournament` のときだけ入力できる |
 | `round` | | ラウンド番号 (1〜99)。`mode` が `tournament` のときだけ入力できる。未入力は `null` |
 | `opponent` | | 対戦相手のプレイヤー名。`mode` が `tournament` のときだけ入力できる |
@@ -127,11 +127,11 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 
 **この項目は今のところ記録するだけで、集計には出していない。** 当たっていないデッキの勝率は意味を持たないため、既存の内訳 (相手クラス別など) には混ぜていない。「大会の持ち込み分布」として集計したくなったら別の内訳として足す。
 
-右側 (スマホでは下) に出る「この大会の成績」は、その大会だけに絞った勝敗・先攻/後攻・使用デッキ別・相手クラス別。**2 デッキのどちらが勝っているかがその場で分かる。** 「この大会の集計を詳しく見る」を押すと、ランク戦の画面をその大会で絞り込んだ状態で開く (対面マトリクスや円グラフも同じものが使える)。
+右側 (スマホでは下) に出る「この大会の成績」は、その大会だけに絞った勝敗・先攻/後攻・使用デッキ別・相手クラス別。**2 デッキのどちらが勝っているかがその場で分かる。** 「この大会の集計を詳しく見る」を押すと、ランクマッチの画面をその大会で絞り込んだ状態で開く (対面マトリクスや円グラフも同じものが使える)。
 
-記録の形はランク戦とまったく同じで、`mode` と大会名が付くだけ。そのため保存先も集計も共通で、大会専用の集計ロジックは無い。
+記録の形はランクマッチとまったく同じで、`mode` と大会名が付くだけ。そのため保存先も集計も共通で、大会専用の集計ロジックは無い。
 
-**ランク戦の画面と混ざるのが嫌なときは、絞り込みの「モード」で分ける。** 履歴には「大会」列が出るので、どの試合が大会のものかは一目で分かる。大会の戦績をランク戦の画面から編集しても、大会名やラウンドは消えない。
+**ランクマッチの画面と混ざるのが嫌なときは、絞り込みの「モード」で分ける。** 履歴には「大会」列が出るので、どの試合が大会のものかは一目で分かる。大会の戦績をランクマッチの画面から編集しても、大会名やラウンドは消えない。
 
 ## 出る集計
 
@@ -143,7 +143,7 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 - **CR グレード別** — グレード付きの戦績が 1 件でもあるときだけ表示される
 - **CR** — 現在値 / 期間の増減 / 最高 / 最低。CR 付きの戦績が 1 件でもあるときだけ表示される
 
-すべて期間・モード (ランク戦 / 大会)・大会名・自分クラス・自分デッキ・グレードで絞り込める。絞り込みは API のクエリ (`/api/stats?since=…&grade=EPIC`) にもそのまま対応し、URL のクエリを付けて画面を開けばその条件で表示された状態から始まる (`/?mode=tournament&event=WB杯`)。
+すべて期間・モード (ランクマッチ / 大会)・大会名・自分クラス・自分デッキ・グレードで絞り込める。絞り込みは API のクエリ (`/api/stats?since=…&grade=EPIC`) にもそのまま対応し、URL のクエリを付けて画面を開けばその条件で表示された状態から始まる (`/?mode=tournament&event=WB杯`)。
 
 ### 画面の並び
 
@@ -218,7 +218,7 @@ CR を入力するとグレードが自動で選ばれる。対応は `config.js
 {"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "grade": "", "cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "opp_class2": "ドラゴン", "opp_deck2": "財宝ドラゴン", "round": 3, "id": "…", "created_at": "…"}
 ```
 
-`mode` を持たない行 (大会機能より前に記録したもの) はランク戦として扱われる。`--mode ladder` や絞り込みの「ランク戦」にもそのまま含まれるので、古いデータを書き換える必要はない。
+`mode` を持たない行 (大会機能より前に記録したもの) はランクマッチとして扱われる。`--mode ladder` や絞り込みの「ランクマッチ」にもそのまま含まれるので、古いデータを書き換える必要はない。
 
 追加は追記のみなので、その日足した試合が git の差分にそのまま出る。別のファイルを使いたい場合は `--data` で指定する。
 
@@ -255,7 +255,7 @@ qr.py            # LAN 起動時に出す QR コードの生成
 config.json      # クラス / ランク / グレードの定義
 web/             # ブラウザ側 (素の HTML / CSS / JS、ビルド不要)
                  #   common.js …… 両画面が使う土台 (API 呼び出しと描画ヘルパー)
-                 #   index.html + app.js …… ランク戦の入力と集計
+                 #   index.html + app.js …… ランクマッチの入力と集計
                  #   tournament.html + tournament.js …… 大会 (2 デッキ BO1) の入力
 data/            # 戦績 JSONL の置き場
 tests/           # unittest

@@ -48,8 +48,8 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TURNS = ("first", "second")
 RESULTS = ("win", "loss")
 
-#: 記録した画面。ランク戦 (index.html) と大会 (tournament.html) を分ける。
-#: mode を持たない古い戦績はすべてランク戦として扱う。
+#: 記録した画面。ランクマッチ (index.html) と大会 (tournament.html) を分ける。
+#: mode を持たない古い戦績はすべてランクマッチとして扱う。
 MODES = ("ladder", "tournament")
 DEFAULT_MODE = "ladder"
 
@@ -202,7 +202,7 @@ def validate_record(payload: dict, config: dict) -> dict:
                 else:
                     record["cr"] = cr
 
-    # 大会 (2 デッキ BO1) 用の項目。ランク戦の記録には付かない。
+    # 大会 (2 デッキ BO1) 用の項目。ランクマッチの記録には付かない。
     mode = payload.get("mode") or DEFAULT_MODE
     if mode not in MODES:
         errors["mode"] = "モードの選択肢にありません"
@@ -210,7 +210,7 @@ def validate_record(payload: dict, config: dict) -> dict:
     record["mode"] = mode
     tournament = mode == "tournament"
 
-    # 大会名・対戦相手・ラウンド・相手のもう 1 デッキは大会モード専用。ランク戦の
+    # 大会名・対戦相手・ラウンド・相手のもう 1 デッキは大会モード専用。ランクマッチの
     # 記録に紛れ込むと「この大会だけの集計」が信用できなくなるので、ここで弾く。
     for field in ("event", "opponent", "opp_deck2"):
         value = _text(payload.get(field), field, MAX_TEXT, errors)
@@ -358,7 +358,7 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
                    grade: str = "", mode: str = "", event: str = "") -> list[dict]:
     """期間 / クラス / デッキ / グレード / モード / 大会で絞り込む。
 
-    空文字の条件は無視する。mode を持たない古い戦績はランク戦として扱うので、
+    空文字の条件は無視する。mode を持たない古い戦績はランクマッチとして扱うので、
     `mode="ladder"` には大会機能を足す前の記録も含まれる。
     """
     out = []
@@ -795,7 +795,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
     stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
     stats.add_argument("--grade", help="CR グレードで絞り込む (EPIC 等)")
-    stats.add_argument("--mode", choices=MODES, help="ランク戦 / 大会のどちらかに絞り込む")
+    stats.add_argument("--mode", choices=MODES, help="ランクマッチ / 大会のどちらかに絞り込む")
     stats.add_argument("--event", help="大会名で絞り込む")
     stats.add_argument("--json", action="store_true", help="JSON で出力する")
     stats.set_defaults(func=cmd_stats)
