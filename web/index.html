@@ -15,167 +15,179 @@
   </header>
 
   <main>
-    <!-- ---------------- 記録フォーム ---------------- -->
-    <section class="card entry" aria-labelledby="entry-title">
-      <h2 id="entry-title">記録する</h2>
-      <form id="entry-form" autocomplete="off">
-        <input type="hidden" name="id" id="field-id">
+    <!-- PC では左に入力、右に絞り込み + 集計を並べる (狭い画面ではこの順に縦積み)。
+         切り替えは CSS だけなので、どちらの並びでも DOM の順序 = タブ移動と
+         読み上げの順序は変わらない。 -->
+    <div class="workspace">
+      <div class="workspace-col">
 
-        <div class="grid grid-4">
-          <label class="field">
-            <span>日付</span>
-            <input type="date" name="played_at" id="field-played_at" required>
-          </label>
+        <!-- ---------------- 記録フォーム ---------------- -->
+        <section class="card entry" aria-labelledby="entry-title">
+          <h2 id="entry-title">記録する</h2>
+          <form id="entry-form" autocomplete="off">
+            <input type="hidden" name="id" id="field-id">
 
-          <label class="field">
-            <span>ランク <em>任意</em></span>
-            <select name="rank" id="field-rank"></select>
-          </label>
+            <div class="grid grid-4">
+              <label class="field">
+                <span>日付</span>
+                <input type="date" name="played_at" id="field-played_at" required>
+              </label>
 
-          <label class="field">
-            <span>グレード <em id="grade-hint">任意</em></span>
-            <select name="grade" id="field-grade"></select>
-          </label>
+              <label class="field">
+                <span>ランク <em>任意</em></span>
+                <select name="rank" id="field-rank"></select>
+              </label>
 
-          <label class="field">
-            <span>CR <em id="cr-hint">任意</em></span>
-            <input type="number" name="cr" id="field-cr" min="0" max="99999" step="1"
-                   inputmode="numeric" placeholder="例: 1520">
-          </label>
-        </div>
+              <label class="field">
+                <span>グレード <em id="grade-hint">任意</em></span>
+                <select name="grade" id="field-grade"></select>
+              </label>
 
-        <div class="grid">
-          <label class="field">
-            <span>自分クラス</span>
-            <select name="my_class" id="field-my_class" required></select>
-          </label>
-          <label class="field">
-            <span>自分デッキ <em>任意</em></span>
-            <input type="text" name="my_deck" id="field-my_deck" list="deck-list" placeholder="例: アグロエルフ" maxlength="120">
-          </label>
-        </div>
-
-        <div class="grid">
-          <label class="field">
-            <span>相手クラス</span>
-            <select name="opp_class" id="field-opp_class" required></select>
-          </label>
-          <label class="field">
-            <span>相手デッキ <em>任意</em></span>
-            <input type="text" name="opp_deck" id="field-opp_deck" list="deck-list" placeholder="例: ミッドロイヤル" maxlength="120">
-          </label>
-        </div>
-
-        <datalist id="deck-list"></datalist>
-
-        <div class="grid">
-          <fieldset class="field toggle-group">
-            <legend>先攻 / 後攻</legend>
-            <div class="toggles" id="field-turn">
-              <label><input type="radio" name="turn" value="first" required><span>先攻</span></label>
-              <label><input type="radio" name="turn" value="second"><span>後攻</span></label>
+              <label class="field">
+                <span>CR <em id="cr-hint">任意</em></span>
+                <input type="number" name="cr" id="field-cr" min="0" max="99999" step="1"
+                       inputmode="numeric" placeholder="例: 1520">
+              </label>
             </div>
-          </fieldset>
 
-          <fieldset class="field toggle-group">
-            <legend>勝敗</legend>
-            <div class="toggles result" id="field-result">
-              <label><input type="radio" name="result" value="win" required><span>勝ち</span></label>
-              <label><input type="radio" name="result" value="loss"><span>負け</span></label>
+            <div class="grid">
+              <label class="field">
+                <span>自分クラス</span>
+                <select name="my_class" id="field-my_class" required></select>
+              </label>
+              <label class="field">
+                <span>自分デッキ <em>任意</em></span>
+                <input type="text" name="my_deck" id="field-my_deck" list="deck-list" placeholder="例: アグロエルフ" maxlength="120">
+              </label>
             </div>
-          </fieldset>
-        </div>
 
-        <label class="field">
-          <span>メモ <em>任意</em></span>
-          <textarea name="note" id="field-note" rows="2" maxlength="1000" placeholder="キープ内容、負け筋、など"></textarea>
-        </label>
+            <div class="grid">
+              <label class="field">
+                <span>相手クラス</span>
+                <select name="opp_class" id="field-opp_class" required></select>
+              </label>
+              <label class="field">
+                <span>相手デッキ <em>任意</em></span>
+                <input type="text" name="opp_deck" id="field-opp_deck" list="deck-list" placeholder="例: ミッドロイヤル" maxlength="120">
+              </label>
+            </div>
 
-        <p class="form-error" id="form-error" role="alert" hidden></p>
+            <datalist id="deck-list"></datalist>
 
-        <div class="actions">
-          <button type="submit" class="primary" id="submit-button">記録する</button>
-          <button type="button" id="cancel-edit" hidden>編集をやめる</button>
-          <span class="hint">クラス・デッキ・ランク・グレードは次の入力に引き継がれます</span>
-        </div>
-      </form>
-    </section>
+            <div class="grid">
+              <fieldset class="field toggle-group">
+                <legend>先攻 / 後攻</legend>
+                <div class="toggles" id="field-turn">
+                  <label><input type="radio" name="turn" value="first" required><span>先攻</span></label>
+                  <label><input type="radio" name="turn" value="second"><span>後攻</span></label>
+                </div>
+              </fieldset>
 
-    <!-- ---------------- 絞り込み ---------------- -->
-    <section class="card filters" aria-labelledby="filter-title">
-      <h2 id="filter-title">絞り込み</h2>
-      <div class="grid grid-5">
-        <label class="field">
-          <span>開始日</span>
-          <input type="date" id="filter-since">
-        </label>
-        <label class="field">
-          <span>終了日</span>
-          <input type="date" id="filter-until">
-        </label>
-        <label class="field">
-          <span>自分クラス</span>
-          <select id="filter-my_class"></select>
-        </label>
-        <label class="field">
-          <span>自分デッキ</span>
-          <select id="filter-my_deck"></select>
-        </label>
-        <label class="field" id="filter-grade-field">
-          <span>グレード</span>
-          <select id="filter-grade"></select>
-        </label>
+              <fieldset class="field toggle-group">
+                <legend>勝敗</legend>
+                <div class="toggles result" id="field-result">
+                  <label><input type="radio" name="result" value="win" required><span>勝ち</span></label>
+                  <label><input type="radio" name="result" value="loss"><span>負け</span></label>
+                </div>
+              </fieldset>
+            </div>
+
+            <label class="field">
+              <span>メモ <em>任意</em></span>
+              <textarea name="note" id="field-note" rows="2" maxlength="1000" placeholder="キープ内容、負け筋、など"></textarea>
+            </label>
+
+            <p class="form-error" id="form-error" role="alert" hidden></p>
+
+            <div class="actions">
+              <button type="submit" class="primary" id="submit-button">記録する</button>
+              <button type="button" id="cancel-edit" hidden>編集をやめる</button>
+              <span class="hint">クラス・デッキ・ランク・グレードは次の入力に引き継がれます</span>
+            </div>
+          </form>
+        </section>
+
       </div>
-      <div class="actions">
-        <button type="button" id="filter-reset">条件をクリア</button>
-        <span class="hint" id="filter-summary"></span>
+      <div class="workspace-col">
+
+        <!-- ---------------- 絞り込み ---------------- -->
+        <section class="card filters" aria-labelledby="filter-title">
+          <h2 id="filter-title">絞り込み</h2>
+          <div class="grid grid-5">
+            <label class="field">
+              <span>開始日</span>
+              <input type="date" id="filter-since">
+            </label>
+            <label class="field">
+              <span>終了日</span>
+              <input type="date" id="filter-until">
+            </label>
+            <label class="field">
+              <span>自分クラス</span>
+              <select id="filter-my_class"></select>
+            </label>
+            <label class="field">
+              <span>自分デッキ</span>
+              <select id="filter-my_deck"></select>
+            </label>
+            <label class="field" id="filter-grade-field">
+              <span>グレード</span>
+              <select id="filter-grade"></select>
+            </label>
+          </div>
+          <div class="actions">
+            <button type="button" id="filter-reset">条件をクリア</button>
+            <span class="hint" id="filter-summary"></span>
+          </div>
+        </section>
+
+        <!-- ---------------- 集計 ---------------- -->
+        <section class="card" aria-labelledby="stats-title">
+          <h2 id="stats-title">集計</h2>
+          <div id="stats-empty" class="empty" hidden>まだ戦績がありません。上のフォームから記録してください。</div>
+          <div id="stats-body" hidden>
+            <div class="stat-row" id="headline"></div>
+            <div class="stat-row" id="cr-row" hidden></div>
+
+            <div class="section-head">
+              <h3>クラス別の内訳</h3>
+              <div class="toggles" id="pie-scope">
+                <label><input type="radio" name="pie_scope" value="my" checked><span>自分クラス</span></label>
+                <label><input type="radio" name="pie_scope" value="opp"><span>相手クラス</span></label>
+              </div>
+            </div>
+            <p class="caption">試合数の割合。色はクラスごとに固定なので、絞り込んでも同じクラスは同じ色のままです。</p>
+            <div class="pie-wrap">
+              <div id="pie-chart"></div>
+              <div class="table-scroll"><table class="breakdown pie-legend" id="pie-legend"></table></div>
+            </div>
+
+            <h3>対面マトリクス</h3>
+            <p class="caption">行 = 自分クラス（使ったクラスのみ） / 列 = 相手クラス。セルは 勝率 (勝-敗)、<code>–</code> は未対戦。色の濃さは試合数が増えるほど強くなります。</p>
+            <div class="table-scroll">
+              <table class="matrix" id="matrix"></table>
+            </div>
+
+            <div class="two-col">
+              <div>
+                <h3>自分デッキ別</h3>
+                <div class="table-scroll"><table class="breakdown" id="by-deck"></table></div>
+              </div>
+              <div>
+                <h3>相手クラス別</h3>
+                <div class="table-scroll"><table class="breakdown" id="by-opp"></table></div>
+              </div>
+            </div>
+
+            <div id="grade-section" hidden>
+              <h3>CR グレード別</h3>
+              <div class="table-scroll"><table class="breakdown" id="by-grade"></table></div>
+            </div>
+          </div>
+        </section>
+
       </div>
-    </section>
-
-    <!-- ---------------- 集計 ---------------- -->
-    <section class="card" aria-labelledby="stats-title">
-      <h2 id="stats-title">集計</h2>
-      <div id="stats-empty" class="empty" hidden>まだ戦績がありません。上のフォームから記録してください。</div>
-      <div id="stats-body" hidden>
-        <div class="stat-row" id="headline"></div>
-        <div class="stat-row" id="cr-row" hidden></div>
-
-        <div class="section-head">
-          <h3>クラス別の内訳</h3>
-          <div class="toggles" id="pie-scope">
-            <label><input type="radio" name="pie_scope" value="my" checked><span>自分クラス</span></label>
-            <label><input type="radio" name="pie_scope" value="opp"><span>相手クラス</span></label>
-          </div>
-        </div>
-        <p class="caption">試合数の割合。色はクラスごとに固定なので、絞り込んでも同じクラスは同じ色のままです。</p>
-        <div class="pie-wrap">
-          <div id="pie-chart"></div>
-          <div class="table-scroll"><table class="breakdown pie-legend" id="pie-legend"></table></div>
-        </div>
-
-        <h3>対面マトリクス</h3>
-        <p class="caption">行 = 自分クラス（使ったクラスのみ） / 列 = 相手クラス。セルは 勝率 (勝-敗)、<code>–</code> は未対戦。色の濃さは試合数が増えるほど強くなります。</p>
-        <div class="table-scroll">
-          <table class="matrix" id="matrix"></table>
-        </div>
-
-        <div class="two-col">
-          <div>
-            <h3>自分デッキ別</h3>
-            <div class="table-scroll"><table class="breakdown" id="by-deck"></table></div>
-          </div>
-          <div>
-            <h3>相手クラス別</h3>
-            <div class="table-scroll"><table class="breakdown" id="by-opp"></table></div>
-          </div>
-        </div>
-
-        <div id="grade-section" hidden>
-          <h3>CR グレード別</h3>
-          <div class="table-scroll"><table class="breakdown" id="by-grade"></table></div>
-        </div>
-      </div>
-    </section>
+    </div>
 
     <!-- ---------------- 履歴 ---------------- -->
     <section class="card" aria-labelledby="log-title">

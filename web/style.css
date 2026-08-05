@@ -11,6 +11,9 @@
   --loss: #f0603f;
   --radius: 10px;
 
+  /* 本文の最大幅。PC で 2 段組みにするときだけ広げる (下の .workspace)。 */
+  --page-max: 1080px;
+
   /* クラス別円グラフの系列色。config のクラス順に 1 から割り当てるので、
      並びは config.json の classes と一対一で対応する。
        1 エルフ (緑) / 2 ロイヤル (金) / 3 ウィッチ (紫) / 4 ドラゴン (橙)
@@ -83,7 +86,7 @@ body {
 .topbar-summary strong { color: var(--text); font-size: 17px; }
 
 main {
-  max-width: 1080px;
+  max-width: var(--page-max);
   margin: 0 auto;
   padding: 20px;
   display: grid;
@@ -94,7 +97,24 @@ main {
    列が多く縮まないので、これを 0 にしないと表の幅がページ全体を横に広げてしまう。
    画面が広いうちは表が収まるので気付かないが、スマホ幅では横スクロールになる。
    はみ出す表は .table-scroll の中だけで横に流れればよい。 */
-main > * { min-width: 0; }
+main > *, .workspace > *, .workspace-col > * { min-width: 0; }
+
+/* ---------- PC の 2 段組み ---------- */
+
+/* 既定 (スマホ・狭い窓) では 1 列のまま、HTML の順に縦へ積まれる。
+   広い画面でだけ 左 = 入力 / 右 = 絞り込み + 集計 に分ける。記録した瞬間に
+   勝率が更新されるのを、スクロールせずその場で見られるようにするため。
+   段が変わってもカードの中身は同じで、各カードの内側の段組みは
+   ビューポート幅ではなくカード自身の幅 (下の @container) で決まる。 */
+.workspace { display: grid; gap: 18px; align-items: start; }
+.workspace-col { display: grid; gap: 18px; align-content: start; }
+
+@media (min-width: 1200px) {
+  :root { --page-max: 1440px; }
+  /* 入力側は幅を決め打ちして、余った分は集計側へ回す。集計には対面マトリクスの
+     ような横に長い表があり、広いほど素直に読めるため。 */
+  .workspace { grid-template-columns: minmax(0, 480px) minmax(0, 1fr); }
+}
 
 /* ---------- card ---------- */
 
@@ -103,6 +123,10 @@ main > * { min-width: 0; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px 20px;
+  /* カードの中の段組みは、画面幅ではなくカード自身の幅を見て決める (@container)。
+     2 段組みにすると同じ画面幅でもカードの広さが変わるので、ビューポートの
+     メディアクエリだと「広い画面なのに中身が詰まっている」状態になってしまう。 */
+  container-type: inline-size;
 }
 .card h2 { margin: 0 0 14px; font-size: 15px; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
 .card h3 { margin: 22px 0 8px; font-size: 14px; }
@@ -116,10 +140,21 @@ main > * { min-width: 0; }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 .grid-5 { grid-template-columns: repeat(5, 1fr); }
-@media (max-width: 900px) {
-  .grid-4, .grid-5 { grid-template-columns: repeat(2, 1fr); }
+
+/* 基準はカードの内寸 (padding の内側)。1 段組みならおおよそ「画面幅 − 80px」。
+   日付や select が潰れない下限は 1 列あたり 170px 前後なので、そこを割る前に
+   列を減らす。最後の 1 列化はスマホ相当の幅だけ。
+
+   4 列 (日付・ランク・グレード・CR) は 3 列にすると CR だけ次の行に落ちるので、
+   一段飛ばして 2 列にする。2 列なら 日付+ランク / グレード+CR で対になる。 */
+@container (max-width: 820px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-5 { grid-template-columns: repeat(3, 1fr); }
 }
-@media (max-width: 700px) {
+@container (max-width: 560px) {
+  .grid-5 { grid-template-columns: repeat(2, 1fr); }
+}
+@container (max-width: 380px) {
   .grid, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
 }
 
@@ -243,7 +278,7 @@ th:first-child, td:first-child { text-align: left; }
 }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+@container (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
 
 /* ---------- クラス別の円グラフ ---------- */
 
@@ -254,7 +289,7 @@ th:first-child, td:first-child { text-align: left; }
 .section-head .toggles span { padding: 4px 12px; font-size: 12px; }
 
 .pie-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
-@media (max-width: 700px) { .pie-wrap { grid-template-columns: 1fr; } }
+@container (max-width: 560px) { .pie-wrap { grid-template-columns: 1fr; } }
 
 .pie { width: 100%; max-width: 220px; height: auto; display: block; margin: 0 auto; }
 .pie-slice { transition: opacity .12s; }
@@ -291,7 +326,7 @@ th:first-child, td:first-child { text-align: left; }
 .log tr.editing { background: var(--accent-soft); }
 
 footer {
-  max-width: 1080px;
+  max-width: var(--page-max);
   margin: 0 auto;
   padding: 8px 20px 40px;
   display: flex;
