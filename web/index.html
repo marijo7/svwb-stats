@@ -31,15 +31,12 @@
           <form id="entry-form" autocomplete="off">
             <input type="hidden" name="id" id="field-id">
 
+            <!-- 上から 日付 → 自分のこと → 相手のこと。1 かたまり 2 列で、
+                 対になる項目が同じ行に来るように区切ってある。 -->
             <div class="grid">
               <label class="field">
                 <span>日付</span>
                 <input type="date" name="played_at" id="field-played_at" required>
-              </label>
-
-              <label class="field">
-                <span>ランク <em>任意</em></span>
-                <select name="rank" id="field-rank"></select>
               </label>
             </div>
 
@@ -54,8 +51,16 @@
               </label>
             </div>
 
-            <!-- ここから下は相手のこと。グレードと CR は相手の値なので、
-                 相手クラス / 相手デッキ と同じかたまりに置く。 -->
+            <!-- ここから下は相手のこと。ランク・グレード・CR はすべて相手の値。 -->
+            <div class="grid">
+              <label class="field">
+                <span>相手ランク <em>任意</em></span>
+                <select name="opp_rank" id="field-opp_rank"></select>
+              </label>
+            </div>
+
+            <!-- グレードと CR は相手ランクがグラマスのときだけ入る。
+                 いつも一緒に動くので対にしてある。 -->
             <div class="grid">
               <label class="field">
                 <span>相手グレード <em id="grade-hint">任意</em></span>
@@ -110,7 +115,7 @@
             <div class="actions">
               <button type="submit" class="primary" id="submit-button">記録する</button>
               <button type="button" id="cancel-edit" hidden>編集をやめる</button>
-              <span class="hint">クラス・デッキ・ランクは次の入力に引き継がれます</span>
+              <span class="hint">クラス・デッキ・相手ランクは次の入力に引き継がれます</span>
             </div>
           </form>
         </section>

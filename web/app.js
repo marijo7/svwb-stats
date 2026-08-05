@@ -17,10 +17,11 @@
 
 /**
  * 直近の入力。連戦を記録するとき毎回選び直さずに済むよう引き継ぐ。
- * 相手グレードと相手 CR は入れない。対戦相手ごとに違う値なので、
- * 残っていると別人の数字をそのまま記録してしまう。
+ * 相手グレードと相手 CR は入れない。対戦相手ごとに違う値なので、残っていると
+ * 別人の数字をそのまま記録してしまう。相手ランクは Master / Grand Master の
+ * 2 段しかなく、同じ帯とばかり当たるので引き継ぐ (違う帯に当たったら選び直す)。
  */
-const CARRY_FIELDS = ["my_class", "my_deck", "rank"];
+const CARRY_FIELDS = ["my_class", "my_deck", "opp_rank"];
 
 /** 絞り込みの入力欄 id と、それが対応する API のクエリ名。 */
 const FILTERS = {
@@ -59,7 +60,7 @@ function filterValues() {
 function syncGradeField() {
   const select = $("field-opp_grade");
   const { grades, grade_rank: gradeRank } = state.config;
-  const atGradeRank = !gradeRank || $("field-rank").value === gradeRank;
+  const atGradeRank = !gradeRank || $("field-opp_rank").value === gradeRank;
   const active = grades.length > 0 && atGradeRank;
   select.disabled = !active;
   if (!active) select.value = "";
@@ -84,7 +85,7 @@ function renderLog(records) {
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "相手グレード", "相手 CR", "メモ", ""].map(
+    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "相手ランク", "相手グレード", "相手 CR", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
@@ -107,7 +108,7 @@ function renderLog(records) {
       el("td", {}, opponentCell(record)),
       el("td", { text: TURN_LABEL[record.turn] || "" }),
       el("td", { class: record.result, text: RESULT_LABEL[record.result] || "" }),
-      el("td", { text: record.rank || "" }),
+      el("td", { text: record.opp_rank || "" }),
       el("td", { text: record.opp_grade || "" }),
       el("td", { text: record.opp_cr === null || record.opp_cr === undefined ? "" : String(record.opp_cr) }),
       el("td", { class: "note", title: record.note || "", text: record.note || "" }),
@@ -139,7 +140,7 @@ function showFormError(message, fields = {}) {
   const box = $("form-error");
   box.hidden = !message;
   box.textContent = message || "";
-  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "opp_grade", "opp_cr", "note"]) {
+  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "opp_rank", "opp_grade", "opp_cr", "note"]) {
     $(`field-${name}`).classList.toggle("invalid", Boolean(fields[name]));
   }
   if (Object.keys(fields).length) {
@@ -152,7 +153,7 @@ function startEdit(record) {
   state.editingId = record.id;
   $("field-id").value = record.id;
   $("field-played_at").value = record.played_at || "";
-  $("field-rank").value = record.rank || "";
+  $("field-opp_rank").value = record.opp_rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
   $("field-opp_grade").value = record.opp_grade || "";
   $("field-opp_cr").value = record.opp_cr === null || record.opp_cr === undefined ? "" : record.opp_cr;
@@ -292,7 +293,7 @@ async function init() {
 
   replaceOptions($("field-my_class"), state.config.classes, { placeholder: "選択" });
   replaceOptions($("field-opp_class"), state.config.classes, { placeholder: "選択" });
-  replaceOptions($("field-rank"), state.config.ranks, { placeholder: "未設定" });
+  replaceOptions($("field-opp_rank"), state.config.ranks, { placeholder: "未設定" });
   replaceOptions($("field-opp_grade"), state.config.grades, { placeholder: "未設定" });
   replaceOptions($("filter-my_class"), state.config.classes, { placeholder: "すべて" });
   replaceOptions($("filter-grade"), state.config.grades, { placeholder: "すべて" });
@@ -302,7 +303,7 @@ async function init() {
 
   $("field-played_at").value = today();
   $("entry-form").addEventListener("submit", submitForm);
-  $("field-rank").addEventListener("change", syncGradeField);
+  $("field-opp_rank").addEventListener("change", syncGradeField);
   $("cancel-edit").addEventListener("click", cancelEdit);
   $("log-more").addEventListener("click", () => {
     state.logExpanded = true;

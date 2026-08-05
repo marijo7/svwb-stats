@@ -92,9 +92,9 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `opp_deck` | | 相手のデッキ名 |
 | `turn` | ○ | `first` (先攻) / `second` (後攻) |
 | `result` | ○ | `win` / `loss` |
-| `rank` | | ランク帯 (`Master` / `Grand Master`) |
-| `opp_grade` | | **相手の** CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
-| `opp_cr` | | **相手の** CR。`rank` が `Grand Master` のときだけ入力できる。未入力は `null` |
+| `opp_rank` | | **相手の** ランク帯 (`Master` / `Grand Master`) |
+| `opp_grade` | | **相手の** CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`opp_rank` が `Grand Master` のときだけ入力できる |
+| `opp_cr` | | **相手の** CR。`opp_rank` が `Grand Master` のときだけ入力できる。未入力は `null` |
 | `note` | | メモ |
 | `mode` | | `ladder` (ランクマッチ、既定) / `tournament` (大会)。どちらの画面で記録したか |
 | `event` | | 大会名。`mode` が `tournament` のときだけ入力できる |
@@ -103,11 +103,11 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `opp_class2` | | 相手が持ち込んだ**もう 1 デッキ**のクラス。`mode` が `tournament` のときだけ入力できる |
 | `opp_deck2` | | そのデッキ名。`mode` が `tournament` のときだけ入力できる |
 
-連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
+連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・相手ランク・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
 
-**相手グレードと相手 CR は引き継がない。** 対戦相手ごとに違う値なので、前の試合の値が残っていると別人の数字をそのまま記録してしまう。
+**相手グレードと相手 CR は引き継がない。** 対戦相手ごとに違う値なので、前の試合の値が残っていると別人の数字をそのまま記録してしまう。相手ランクだけは Master / Grand Master の 2 段しかなく同じ帯とばかり当たるので引き継ぐ (違う帯に当たったら選び直す)。
 
-入力欄は上から 自分のこと (日付・ランク・自分クラス・自分デッキ) → 相手のこと (相手グレード・相手 CR・相手クラス・相手デッキ) の順に並ぶ。
+入力欄は上から 自分のこと (日付・自分クラス・自分デッキ) → 相手のこと (相手ランク・相手グレード・相手 CR・相手クラス・相手デッキ) の順に並ぶ。
 
 ## 大会 (2 デッキ BO1) を記録する
 
@@ -194,7 +194,7 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 
 **記録するのは相手のグレードで、自分のグレードではない。** 相手 CR と同じ考え方で、自分の帯はゲームを見れば分かる。残して意味があるのは「どの帯の相手と当たっているか」のほう。
 
-CR (クラス別レーティング) のグレードはグラマス昇格後にしか存在しないため、`grade_rank` で指定したランクのときだけ入力できる (自分がグラマスなら相手もグラマス、という前提)。UI では他のランクを選んでいる間グレード欄が無効になり、サーバー側でも同じ条件で弾く。`grade_rank` を空文字にすると、この結び付けを行わない。
+CR (クラス別レーティング) のグレードはグラマス昇格後にしか存在しないため、**相手ランク**が `grade_rank` で指定したランクのときだけ入力できる。UI では他のランクを選んでいる間グレード欄と CR 欄が無効になり、サーバー側でも同じ条件で弾く。`grade_rank` を空文字にすると、この結び付けを行わない。
 
 グレードは下から `EPIC未満` → `EPIC` → `ULTIMATE` → `LEGEND` → `BEYOND` の 5 段階。`grades` の並び順はそのまま選択肢の表示順になる。集計の「相手グレード別」もこの梯子順で並ぶ (他の内訳は試合数順)。
 
@@ -202,7 +202,7 @@ CR (クラス別レーティング) のグレードはグラマス昇格後に�
 
 ### 相手 CR について
 
-グレードと同じく `grade_rank` のときだけ入力できる。CR 自体がグラマス帯にしか無いため。0〜99999 の整数で、この範囲は桁の打ち間違いを弾くための入力ガードであってゲーム側の上限ではない。
+グレードと同じく、相手ランクが `grade_rank` のときだけ入力できる。CR 自体がグラマス帯にしか無いため。0〜99999 の整数で、この範囲は桁の打ち間違いを弾くための入力ガードであってゲーム側の上限ではない。
 
 **記録するのは相手の CR で、自分の CR ではない。** ゲーム内で見えている自分の CR を毎試合書き写しても、その数字はゲームを見れば分かる。相手の CR は「今どのくらいの帯と当たっているか」を残すもので、あとから見返す価値があるのはこちらだけ、という判断。
 
@@ -213,13 +213,13 @@ CR (クラス別レーティング) のグレードはグラマス昇格後に�
 `data/records.jsonl` は 1 行 1 試合の JSON。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "opp_grade": "EPIC", "opp_cr": 1530, "note": "", "mode": "ladder", "event": "", "opponent": "", "opp_class2": "", "opp_deck2": "", "round": null, "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "opp_rank": "Grand Master", "opp_grade": "EPIC", "opp_cr": 1530, "note": "", "mode": "ladder", "event": "", "opponent": "", "opp_class2": "", "opp_deck2": "", "round": null, "id": "…", "created_at": "…"}
 ```
 
 大会の戦績も同じファイル・同じ形で、`mode` と大会の項目が入るだけ。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "opp_grade": "", "opp_cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "opp_class2": "ドラゴン", "opp_deck2": "財宝ドラゴン", "round": 3, "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "opp_rank": "", "opp_grade": "", "opp_cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "opp_class2": "ドラゴン", "opp_deck2": "財宝ドラゴン", "round": 3, "id": "…", "created_at": "…"}
 ```
 
 `mode` を持たない行 (大会機能より前に記録したもの) はランクマッチとして扱われる。既定の集計にもそのまま含まれるので、古いデータを書き換える必要はない。

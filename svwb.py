@@ -86,8 +86,8 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     増減は config.json を編集するだけで UI と検証の両方に反映される。
 
     `grade_rank` は「グレードが付くランク」の名前 (Grand Master)。CR グレードは
-    グラマス昇格後にしか存在しないので、この値と一致するランクのときだけ
-    グレードを受け付ける。空にすると結び付けを行わない。
+    グラマス昇格後にしか存在しないので、相手ランクがこの値と一致するときだけ
+    相手グレードと相手 CR を受け付ける。空にすると結び付けを行わない。
 
     """
     with path.open(encoding="utf-8") as fp:
@@ -169,10 +169,12 @@ def validate_record(payload: dict, config: dict) -> dict:
         errors["result"] = "勝ち / 負け を選択してください"
     record["result"] = result if result in RESULTS else ""
 
-    rank = payload.get("rank") or ""
+    # 相手のランク帯。相手グレード / 相手 CR を受け付けるかの判定にも使う
+    # (グレードと CR はグラマス昇格後にしか存在しないため)。
+    rank = payload.get("opp_rank") or ""
     if rank and rank not in config["ranks"]:
-        errors["rank"] = "ランクの選択肢にありません"
-    record["rank"] = rank if isinstance(rank, str) else ""
+        errors["opp_rank"] = "ランクの選択肢にありません"
+    record["opp_rank"] = rank if isinstance(rank, str) else ""
 
     # 相手のグレード。CR と同じく、その帯にしかグレードが無いので
     # 自分のランクが grade_rank のときだけ受け付ける。
@@ -180,8 +182,8 @@ def validate_record(payload: dict, config: dict) -> dict:
     grade_rank = config.get("grade_rank", "")
     if grade and grade not in config.get("grades", []):
         errors["opp_grade"] = "グレードの選択肢にありません"
-    elif grade and grade_rank and record["rank"] != grade_rank:
-        errors["opp_grade"] = f"相手グレードは {grade_rank} のときだけ記録できます"
+    elif grade and grade_rank and record["opp_rank"] != grade_rank:
+        errors["opp_grade"] = f"相手グレードは相手が {grade_rank} のときだけ記録できます"
     record["opp_grade"] = grade if isinstance(grade, str) else ""
 
     # 相手の CR。グレードと同じくグラマス帯のみ (CR 自体がその帯にしか無い)。
@@ -200,8 +202,8 @@ def validate_record(payload: dict, config: dict) -> dict:
             else:
                 if not 0 <= opp_cr <= MAX_CR:
                     errors["opp_cr"] = f"0〜{MAX_CR} の範囲で指定してください"
-                elif grade_rank and record["rank"] != grade_rank:
-                    errors["opp_cr"] = f"相手 CR は {grade_rank} のときだけ記録できます"
+                elif grade_rank and record["opp_rank"] != grade_rank:
+                    errors["opp_cr"] = f"相手 CR は相手が {grade_rank} のときだけ記録できます"
                 else:
                     record["opp_cr"] = opp_cr
 
