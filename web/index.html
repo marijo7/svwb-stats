@@ -31,7 +31,7 @@
           <form id="entry-form" autocomplete="off">
             <input type="hidden" name="id" id="field-id">
 
-            <div class="grid grid-4">
+            <div class="grid">
               <label class="field">
                 <span>日付</span>
                 <input type="date" name="played_at" id="field-played_at" required>
@@ -40,17 +40,6 @@
               <label class="field">
                 <span>ランク <em>任意</em></span>
                 <select name="rank" id="field-rank"></select>
-              </label>
-
-              <label class="field">
-                <span>グレード <em id="grade-hint">任意</em></span>
-                <select name="grade" id="field-grade"></select>
-              </label>
-
-              <label class="field">
-                <span>相手 CR <em id="cr-hint">任意</em></span>
-                <input type="number" name="opp_cr" id="field-opp_cr" min="0" max="99999" step="1"
-                       inputmode="numeric" placeholder="例: 1520">
               </label>
             </div>
 
@@ -62,6 +51,21 @@
               <label class="field">
                 <span>自分デッキ <em>任意</em></span>
                 <input type="text" name="my_deck" id="field-my_deck" list="deck-list" placeholder="例: アグロエルフ" maxlength="120">
+              </label>
+            </div>
+
+            <!-- ここから下は相手のこと。グレードと CR は相手の値なので、
+                 相手クラス / 相手デッキ と同じかたまりに置く。 -->
+            <div class="grid">
+              <label class="field">
+                <span>相手グレード <em id="grade-hint">任意</em></span>
+                <select name="opp_grade" id="field-opp_grade"></select>
+              </label>
+
+              <label class="field">
+                <span>相手 CR <em id="cr-hint">任意</em></span>
+                <input type="number" name="opp_cr" id="field-opp_cr" min="0" max="99999" step="1"
+                       inputmode="numeric" placeholder="例: 1520">
               </label>
             </div>
 
@@ -106,7 +110,7 @@
             <div class="actions">
               <button type="submit" class="primary" id="submit-button">記録する</button>
               <button type="button" id="cancel-edit" hidden>編集をやめる</button>
-              <span class="hint">クラス・デッキ・ランク・グレードは次の入力に引き継がれます</span>
+              <span class="hint">クラス・デッキ・ランクは次の入力に引き継がれます</span>
             </div>
           </form>
         </section>
@@ -135,7 +139,7 @@
               <select id="filter-my_deck"></select>
             </label>
             <label class="field" id="filter-grade-field">
-              <span>グレード</span>
+              <span>相手グレード</span>
               <select id="filter-grade"></select>
             </label>
           </div>
@@ -183,7 +187,7 @@
             </div>
 
             <div id="grade-section" hidden>
-              <h3>CR グレード別</h3>
+              <h3>相手グレード別</h3>
               <div class="table-scroll"><table class="breakdown" id="by-grade"></table></div>
             </div>
           </div>

@@ -35,7 +35,7 @@ python3 svwb.py serve --open
 python3 svwb.py stats                       # 全期間
 python3 svwb.py stats --since 2026-08-01    # 期間で絞る
 python3 svwb.py stats --my-class エルフ      # クラスで絞る
-python3 svwb.py stats --grade EPIC          # CR グレードで絞る
+python3 svwb.py stats --opp-grade EPIC      # 相手グレードで絞る
 python3 svwb.py stats --mode tournament     # 大会だけ (既定はランクマッチのみ)
 python3 svwb.py stats --mode all            # ランクマッチと大会を混ぜる
 python3 svwb.py stats --event WB杯           # 大会名で絞る
@@ -93,7 +93,7 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `turn` | ○ | `first` (先攻) / `second` (後攻) |
 | `result` | ○ | `win` / `loss` |
 | `rank` | | ランク帯 (`Master` / `Grand Master`) |
-| `grade` | | CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
+| `opp_grade` | | **相手の** CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`rank` が `Grand Master` のときだけ入力できる |
 | `opp_cr` | | **相手の** CR。`rank` が `Grand Master` のときだけ入力できる。未入力は `null` |
 | `note` | | メモ |
 | `mode` | | `ladder` (ランクマッチ、既定) / `tournament` (大会)。どちらの画面で記録したか |
@@ -103,9 +103,11 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `opp_class2` | | 相手が持ち込んだ**もう 1 デッキ**のクラス。`mode` が `tournament` のときだけ入力できる |
 | `opp_deck2` | | そのデッキ名。`mode` が `tournament` のときだけ入力できる |
 
-連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・グレード・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
+連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
 
-**相手 CR は引き継がない。** 対戦相手ごとに違う値なので、前の試合の値が残っていると別人の数字をそのまま記録してしまう。
+**相手グレードと相手 CR は引き継がない。** 対戦相手ごとに違う値なので、前の試合の値が残っていると別人の数字をそのまま記録してしまう。
+
+入力欄は上から 自分のこと (日付・ランク・自分クラス・自分デッキ) → 相手のこと (相手グレード・相手 CR・相手クラス・相手デッキ) の順に並ぶ。
 
 ## 大会 (2 デッキ BO1) を記録する
 
@@ -134,7 +136,7 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 
 絞り込みの「大会」を切り替えると、過去の大会や**すべての大会**をまとめて見られる。大会をまたいだ集計は「持ち込んだデッキがどの環境でどれだけ勝ったか」として読める。日付・自分クラス・自分デッキでも絞れる。「今の大会に戻す」で既定に戻る。
 
-**集計の中身はランクマッチのタブと同じもの** (`web/stats.js` を共用) — 全体 / 先攻・後攻、クラス別の円グラフ、対面マトリクス、使用デッキ別、相手クラス別。グレード別だけは大会に付かない値なので置いていない。
+**集計の中身はランクマッチのタブと同じもの** (`web/stats.js` を共用) — 全体 / 先攻・後攻、クラス別の円グラフ、対面マトリクス、使用デッキ別、相手クラス別。相手グレード別だけは大会に付かない値なので置いていない。
 
 別の大会を見ている最中に記録すると、その 1 戦が見えるよう自動で今の大会へ戻る。ラウンド番号も「今の大会」を数えるので、過去の大会を眺めていても next のラウンドはずれない。
 
@@ -155,11 +157,11 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 - **クラス別の内訳 (円グラフ)** — 試合数の割合。ブラウザのみ。自分クラス / 相手クラスを切り替えられる。相手クラス側は「今どのクラスと当たっているか」＝環境分布として読める
 - **対面マトリクス** — 自分クラス × 相手クラス の勝率。試合数が少ないマスは色を薄くしてあり、1 戦だけのマスが「得意な対面」に見えないようにしている
 - **自分デッキ別 / 相手クラス別** — 試合数の多い順
-- **CR グレード別** — グレード付きの戦績が 1 件でもあるときだけ表示される (ランクマッチのタブのみ)
+- **相手グレード別** — どの帯の相手に勝てているか。相手グレード付きの戦績が 1 件でもあるときだけ表示される (ランクマッチのタブのみ)
 
-**両方のタブが同じ描画を使う** (`web/stats.js`)。違うのは対象だけで、ランクマッチのタブはランクマッチの戦績、大会のタブは大会の戦績を集計する。グレードはランクマッチ帯にしか無い値なので、大会のタブにはそのセクションが無い。
+**両方のタブが同じ描画を使う** (`web/stats.js`)。違うのは対象だけで、ランクマッチのタブはランクマッチの戦績、大会のタブは大会の戦績を集計する。相手グレードはランクマッチ帯にしか無い値なので、大会のタブにはそのセクションが無い。
 
-絞り込みは、ランクマッチのタブが 期間・自分クラス・自分デッキ・グレード、大会のタブが 大会・期間・自分クラス・自分デッキ。どちらも API のクエリ (`/api/stats?since=…&grade=EPIC`) にそのまま対応する。
+絞り込みは、ランクマッチのタブが 期間・自分クラス・自分デッキ・相手グレード、大会のタブが 大会・期間・自分クラス・自分デッキ。どちらも API のクエリ (`/api/stats?since=…&opp_grade=EPIC`) にそのまま対応する。
 
 **モードを指定しない集計はランクマッチのみ** (`svwb.py stats` / `/api/stats`)。両方を混ぜるときは `--mode all` / `?mode=all` と明示する。詳しくは [タブとデータの関係](#タブとデータの関係)。
 
@@ -188,13 +190,15 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 
 `ranks` は Master / Grand Master のみ。それ以下の帯 (A / AA など) を記録したくなったら `ranks` に足す。ここに無いランクは新規記録・編集のときに弾かれるが、すでに保存済みの戦績はそのまま残り、履歴にも表示される (その行を編集しようとしたときだけランクの選び直しが必要になる)。
 
-### グレードについて
+### 相手グレードについて
 
-CR (クラス別レーティング) のグレードはグラマス昇格後にしか存在しないため、`grade_rank` で指定したランクのときだけ入力できる。UI では他のランクを選んでいる間グレード欄が無効になり、サーバー側でも同じ条件で弾く。`grade_rank` を空文字にすると、この結び付けを行わない。
+**記録するのは相手のグレードで、自分のグレードではない。** 相手 CR と同じ考え方で、自分の帯はゲームを見れば分かる。残して意味があるのは「どの帯の相手と当たっているか」のほう。
 
-グレードは下から `EPIC未満` → `EPIC` → `ULTIMATE` → `LEGEND` → `BEYOND` の 5 段階。`grades` の並び順はそのまま選択肢の表示順になる。集計の「CR グレード別」もこの梯子順で並ぶ (他の内訳は試合数順)。
+CR (クラス別レーティング) のグレードはグラマス昇格後にしか存在しないため、`grade_rank` で指定したランクのときだけ入力できる (自分がグラマスなら相手もグラマス、という前提)。UI では他のランクを選んでいる間グレード欄が無効になり、サーバー側でも同じ条件で弾く。`grade_rank` を空文字にすると、この結び付けを行わない。
 
-`EPIC未満` は「グラマスではあるがまだ EPIC に届いていない」帯を表す明示的な選択肢。**グレード欄を空のままにするのとは意味が違う** — 空欄は「グレードを記録していない」であって「EPIC 未満だった」ではない。集計の「CR グレード別」には、グレードを選んだ戦績だけが載る。
+グレードは下から `EPIC未満` → `EPIC` → `ULTIMATE` → `LEGEND` → `BEYOND` の 5 段階。`grades` の並び順はそのまま選択肢の表示順になる。集計の「相手グレード別」もこの梯子順で並ぶ (他の内訳は試合数順)。
+
+`EPIC未満` は「グラマスではあるがまだ EPIC に届いていない」帯を表す明示的な選択肢。**グレード欄を空のままにするのとは意味が違う** — 空欄は「グレードを記録していない」であって「EPIC 未満だった」ではない。集計の「相手グレード別」には、グレードを選んだ戦績だけが載る。
 
 ### 相手 CR について
 
@@ -209,13 +213,13 @@ CR (クラス別レーティング) のグレードはグラマス昇格後に�
 `data/records.jsonl` は 1 行 1 試合の JSON。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "grade": "EPIC", "opp_cr": 1530, "note": "", "mode": "ladder", "event": "", "opponent": "", "opp_class2": "", "opp_deck2": "", "round": null, "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "opp_grade": "EPIC", "opp_cr": 1530, "note": "", "mode": "ladder", "event": "", "opponent": "", "opp_class2": "", "opp_deck2": "", "round": null, "id": "…", "created_at": "…"}
 ```
 
 大会の戦績も同じファイル・同じ形で、`mode` と大会の項目が入るだけ。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "grade": "", "opp_cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "opp_class2": "ドラゴン", "opp_deck2": "財宝ドラゴン", "round": 3, "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "opp_grade": "", "opp_cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "opp_class2": "ドラゴン", "opp_deck2": "財宝ドラゴン", "round": 3, "id": "…", "created_at": "…"}
 ```
 
 `mode` を持たない行 (大会機能より前に記録したもの) はランクマッチとして扱われる。既定の集計にもそのまま含まれるので、古いデータを書き換える必要はない。
@@ -233,7 +237,7 @@ python3 svwb.py --data /path/to/records.jsonl serve
 | メソッド | パス | 内容 |
 |---|---|---|
 | `GET` | `/api/config` | クラス / ランク / グレードの一覧 |
-| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `grade` `mode` `event` で絞り込み)。`mode` の既定は `ladder`、両方まとめては `mode=all` |
+| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `opp_grade` `mode` `event` で絞り込み)。`mode` の既定は `ladder`、両方まとめては `mode=all` |
 | `POST` | `/api/records` | 追加 |
 | `PUT` | `/api/records/{id}` | 更新 |
 | `DELETE` | `/api/records/{id}` | 削除 |

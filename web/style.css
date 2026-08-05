@@ -178,25 +178,19 @@ main > *, .workspace > *, .workspace-col > * { min-width: 0; }
 /* ---------- form ---------- */
 
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-.grid-3 { grid-template-columns: repeat(3, 1fr); }
-.grid-4 { grid-template-columns: repeat(4, 1fr); }
 .grid-5 { grid-template-columns: repeat(5, 1fr); }
 
 /* 基準はカードの内寸 (padding の内側)。1 段組みならおおよそ「画面幅 − 80px」。
    日付や select が潰れない下限は 1 列あたり 170px 前後なので、そこを割る前に
-   列を減らす。最後の 1 列化はスマホ相当の幅だけ。
-
-   4 列 (日付・ランク・グレード・CR) は 3 列にすると CR だけ次の行に落ちるので、
-   一段飛ばして 2 列にする。2 列なら 日付+ランク / グレード+CR で対になる。 */
+   列を減らす。最後の 1 列化はスマホ相当の幅だけ。 */
 @container (max-width: 820px) {
-  .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .grid-5 { grid-template-columns: repeat(3, 1fr); }
 }
 @container (max-width: 560px) {
   .grid-5 { grid-template-columns: repeat(2, 1fr); }
 }
 @container (max-width: 380px) {
-  .grid, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+  .grid, .grid-5 { grid-template-columns: 1fr; }
 }
 
 /* 大会設定のデッキ枠。クラスとデッキ名は 1 デッキ分の組なので、枠で囲って
@@ -212,12 +206,9 @@ main > *, .workspace > *, .workspace-col > * { min-width: 0; }
 .deck-slot legend em { font-style: normal; font-weight: normal; opacity: .65; }
 .deck-slot .grid { margin-bottom: 0; }
 
-/* グレードと CR はグラマス帯でしか付かない。ランクが一致しないときは触れなくする。 */
+/* 相手グレードと相手 CR はグラマス帯でしか付かない。ランクが一致しないときは
+   触れなくする。 */
 .field select:disabled, .field input:disabled { opacity: .5; cursor: not-allowed; }
-
-#cr-row { margin-top: 12px; }
-.stat .delta-up { color: var(--win); }
-.stat .delta-down { color: var(--loss); }
 
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; margin: 0; border: 0; padding: 0; }
 .field > span, .field > legend { font-size: 12px; color: var(--muted); padding: 0; }

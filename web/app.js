@@ -15,8 +15,12 @@
  * 一覧も集計も mode=ladder に固定して取りに行く。
  */
 
-/** 直近の入力。連戦を記録するとき毎回選び直さずに済むよう引き継ぐ。 */
-const CARRY_FIELDS = ["my_class", "my_deck", "rank", "grade"];
+/**
+ * 直近の入力。連戦を記録するとき毎回選び直さずに済むよう引き継ぐ。
+ * 相手グレードと相手 CR は入れない。対戦相手ごとに違う値なので、
+ * 残っていると別人の数字をそのまま記録してしまう。
+ */
+const CARRY_FIELDS = ["my_class", "my_deck", "rank"];
 
 /** 絞り込みの入力欄 id と、それが対応する API のクエリ名。 */
 const FILTERS = {
@@ -24,7 +28,7 @@ const FILTERS = {
   "filter-until": "until",
   "filter-my_class": "my_class",
   "filter-my_deck": "my_deck",
-  "filter-grade": "grade",
+  "filter-grade": "opp_grade",
 };
 const FILTER_IDS = Object.keys(FILTERS);
 
@@ -53,7 +57,7 @@ function filterValues() {
 }
 
 function syncGradeField() {
-  const select = $("field-grade");
+  const select = $("field-opp_grade");
   const { grades, grade_rank: gradeRank } = state.config;
   const atGradeRank = !gradeRank || $("field-rank").value === gradeRank;
   const active = grades.length > 0 && atGradeRank;
@@ -80,7 +84,7 @@ function renderLog(records) {
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "相手 CR", "メモ", ""].map(
+    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "相手グレード", "相手 CR", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
@@ -104,7 +108,7 @@ function renderLog(records) {
       el("td", { text: TURN_LABEL[record.turn] || "" }),
       el("td", { class: record.result, text: RESULT_LABEL[record.result] || "" }),
       el("td", { text: record.rank || "" }),
-      el("td", { text: record.grade || "" }),
+      el("td", { text: record.opp_grade || "" }),
       el("td", { text: record.opp_cr === null || record.opp_cr === undefined ? "" : String(record.opp_cr) }),
       el("td", { class: "note", title: record.note || "", text: record.note || "" }),
       el("td", {}, [
@@ -135,7 +139,7 @@ function showFormError(message, fields = {}) {
   const box = $("form-error");
   box.hidden = !message;
   box.textContent = message || "";
-  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "grade", "opp_cr", "note"]) {
+  for (const name of ["played_at", "my_class", "my_deck", "opp_class", "opp_deck", "rank", "opp_grade", "opp_cr", "note"]) {
     $(`field-${name}`).classList.toggle("invalid", Boolean(fields[name]));
   }
   if (Object.keys(fields).length) {
@@ -150,7 +154,7 @@ function startEdit(record) {
   $("field-played_at").value = record.played_at || "";
   $("field-rank").value = record.rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
-  $("field-grade").value = record.grade || "";
+  $("field-opp_grade").value = record.opp_grade || "";
   $("field-opp_cr").value = record.opp_cr === null || record.opp_cr === undefined ? "" : record.opp_cr;
   $("field-my_class").value = record.my_class || "";
   $("field-my_deck").value = record.my_deck || "";
@@ -185,13 +189,10 @@ function resetForNextGame(submitted) {
   const playedAt = submitted.played_at;
   $("entry-form").reset();
   $("field-played_at").value = playedAt;
-  // ランクを戻してからグレードの有効/無効を判定し、そのあとグレードを復元する。
   for (const [name, value] of Object.entries(carried)) {
-    if (name === "grade") continue;
     $(`field-${name}`).value = value;
   }
-  syncGradeField();
-  $("field-grade").value = carried.grade;
+  syncGradeField();   // ランクを戻したあとで相手グレード / 相手 CR の有効・無効を決める
   $("field-opp_class").focus();
 }
 
@@ -292,7 +293,7 @@ async function init() {
   replaceOptions($("field-my_class"), state.config.classes, { placeholder: "選択" });
   replaceOptions($("field-opp_class"), state.config.classes, { placeholder: "選択" });
   replaceOptions($("field-rank"), state.config.ranks, { placeholder: "未設定" });
-  replaceOptions($("field-grade"), state.config.grades, { placeholder: "未設定" });
+  replaceOptions($("field-opp_grade"), state.config.grades, { placeholder: "未設定" });
   replaceOptions($("filter-my_class"), state.config.classes, { placeholder: "すべて" });
   replaceOptions($("filter-grade"), state.config.grades, { placeholder: "すべて" });
   // グレードが未定義の config なら絞り込み欄ごと出さない。

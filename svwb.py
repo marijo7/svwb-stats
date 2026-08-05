@@ -174,13 +174,15 @@ def validate_record(payload: dict, config: dict) -> dict:
         errors["rank"] = "ランクの選択肢にありません"
     record["rank"] = rank if isinstance(rank, str) else ""
 
-    grade = payload.get("grade") or ""
+    # 相手のグレード。CR と同じく、その帯にしかグレードが無いので
+    # 自分のランクが grade_rank のときだけ受け付ける。
+    grade = payload.get("opp_grade") or ""
     grade_rank = config.get("grade_rank", "")
     if grade and grade not in config.get("grades", []):
-        errors["grade"] = "グレードの選択肢にありません"
+        errors["opp_grade"] = "グレードの選択肢にありません"
     elif grade and grade_rank and record["rank"] != grade_rank:
-        errors["grade"] = f"グレードは {grade_rank} のときだけ記録できます"
-    record["grade"] = grade if isinstance(grade, str) else ""
+        errors["opp_grade"] = f"相手グレードは {grade_rank} のときだけ記録できます"
+    record["opp_grade"] = grade if isinstance(grade, str) else ""
 
     # 相手の CR。グレードと同じくグラマス帯のみ (CR 自体がその帯にしか無い)。
     # 未入力は "" ではなく None で持つ (数値フィールドなので、空文字より null の
@@ -356,8 +358,8 @@ def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)") -> 
 
 def filter_records(records: list[dict], since: str = "", until: str = "",
                    my_class: str = "", my_deck: str = "", opp_class: str = "",
-                   grade: str = "", mode: str = "", event: str = "") -> list[dict]:
-    """期間 / クラス / デッキ / グレード / モード / 大会で絞り込む。
+                   opp_grade: str = "", mode: str = "", event: str = "") -> list[dict]:
+    """期間 / クラス / デッキ / 相手グレード / モード / 大会で絞り込む。
 
     空文字の条件は無視する。mode は空文字と "all" のどちらも「絞り込まない」で、
     ここでは既定を持たない (何も指定しなければ全部返す)。CLI と HTTP は
@@ -379,7 +381,7 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
             continue
         if opp_class and record.get("opp_class") != opp_class:
             continue
-        if grade and (record.get("grade") or "") != grade:
+        if opp_grade and (record.get("opp_grade") or "") != opp_grade:
             continue
         if mode and mode != "all" and (record.get("mode") or DEFAULT_MODE) != mode:
             continue
@@ -435,12 +437,12 @@ def compute_stats(records: list[dict], classes: list[str],
         "by_my_class": _breakdown(records, "my_class"),
         "by_opp_class": _breakdown(records, "opp_class"),
         "by_my_deck": _breakdown(records, "my_deck"),
-        # グレードは Grand Master 帯でしか付かないので、未設定しか無い場合は
+        # 相手グレードは Grand Master 帯でしか付かないので、未設定しか無い場合は
         # 行を出さない (グラマス未到達のユーザーに空の表を見せない)。
         # 他の内訳と違い試合数順ではなく config の梯子順で並べる。EPIC未満 →
         # BEYOND という順序自体が読む側の求める情報なので。
-        "by_grade": _order_by(
-            _breakdown([r for r in records if r.get("grade")], "grade"), grades or []),
+        "by_opp_grade": _order_by(
+            _breakdown([r for r in records if r.get("opp_grade")], "opp_grade"), grades or []),
     }
 
 
@@ -487,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
     def _query_filters(self, query: dict[str, list[str]]) -> dict:
         filters = {name: (query.get(name) or [""])[0]
                    for name in ("since", "until", "my_class", "my_deck", "opp_class",
-                                "grade", "mode", "event")}
+                                "opp_grade", "mode", "event")}
         # モードを指定しないときはランクマッチ。混ぜた数字を既定にしないための
         # 既定値で、両方まとめて見たいときは mode=all を明示する。
         filters["mode"] = filters["mode"] or DEFAULT_MODE
@@ -696,7 +698,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         store.list(),
         since=args.since or "", until=args.until or "",
         my_class=args.my_class or "", my_deck=args.my_deck or "",
-        opp_class=args.opp_class or "", grade=args.grade or "",
+        opp_class=args.opp_class or "", opp_grade=args.opp_grade or "",
         mode=args.mode or "", event=args.event or "",
     )
     stats = compute_stats(records, config["classes"], config["grades"])
@@ -749,10 +751,10 @@ def cmd_stats(args: argparse.Namespace) -> int:
             print(_format_tally(row["key"], row, width))
         print()
 
-    if stats["by_grade"]:
-        print("== CR グレード別 ==")
-        width = max(_display_width(row["key"]) for row in stats["by_grade"])
-        for row in stats["by_grade"]:
+    if stats["by_opp_grade"]:
+        print("== 相手グレード別 ==")
+        width = max(_display_width(row["key"]) for row in stats["by_opp_grade"])
+        for row in stats["by_opp_grade"]:
             print(_format_tally(row["key"], row, width))
         print()
 
@@ -781,7 +783,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--my-class", dest="my_class", help="自分クラスで絞り込む")
     stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
     stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
-    stats.add_argument("--grade", help="CR グレードで絞り込む (EPIC 等)")
+    stats.add_argument("--opp-grade", dest="opp_grade", help="相手グレードで絞り込む (EPIC 等)")
     stats.add_argument("--mode", choices=FILTER_MODES, default=DEFAULT_MODE,
                        help="集計する対象 (既定: ランクマッチのみ。all で大会も混ぜる)")
     stats.add_argument("--event", help="大会名で絞り込む")

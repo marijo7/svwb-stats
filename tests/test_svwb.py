@@ -35,7 +35,7 @@ def make_record(**overrides):
         "turn": "first",
         "result": "win",
         "rank": "",
-        "grade": "",
+        "opp_grade": "",
         "opp_cr": None,
         "note": "",
     }
@@ -116,26 +116,26 @@ class TestValidation(unittest.TestCase):
         self.assertEqual(svwb.validate_record(make_record(rank=""), CONFIG)["rank"], "")
 
     def test_grade_is_accepted_at_grand_master(self):
-        record = svwb.validate_record(make_record(rank="Grand Master", grade="EPIC"), CONFIG)
-        self.assertEqual(record["grade"], "EPIC")
+        record = svwb.validate_record(make_record(rank="Grand Master", opp_grade="EPIC"), CONFIG)
+        self.assertEqual(record["opp_grade"], "EPIC")
 
     def test_rejects_unknown_grade(self):
         with self.assertRaises(svwb.ValidationError) as ctx:
-            svwb.validate_record(make_record(rank="Grand Master", grade="MYTHIC"), CONFIG)
-        self.assertIn("grade", ctx.exception.errors)
+            svwb.validate_record(make_record(rank="Grand Master", opp_grade="MYTHIC"), CONFIG)
+        self.assertIn("opp_grade", ctx.exception.errors)
 
     def test_rejects_grade_below_grand_master(self):
         # CR グレードはグラマス昇格後にしか存在しない。
         for rank in ("", "AA0", "Master"):
             with self.subTest(rank=rank), self.assertRaises(svwb.ValidationError) as ctx:
-                svwb.validate_record(make_record(rank=rank, grade="EPIC"), CONFIG)
-            self.assertIn("grade", ctx.exception.errors)
+                svwb.validate_record(make_record(rank=rank, opp_grade="EPIC"), CONFIG)
+            self.assertIn("opp_grade", ctx.exception.errors)
 
     def test_empty_grade_is_fine_at_any_rank(self):
         for rank in ("", "AA0", "Grand Master"):
             with self.subTest(rank=rank):
-                record = svwb.validate_record(make_record(rank=rank, grade=""), CONFIG)
-                self.assertEqual(record["grade"], "")
+                record = svwb.validate_record(make_record(rank=rank, opp_grade=""), CONFIG)
+                self.assertEqual(record["opp_grade"], "")
 
     def test_opp_cr_is_accepted_at_grand_master(self):
         record = svwb.validate_record(make_record(rank="Grand Master", opp_cr=1520), CONFIG)
@@ -179,8 +179,8 @@ class TestValidation(unittest.TestCase):
     def test_grade_rank_coupling_is_optional(self):
         # grade_rank が空の config ではランクとの結び付けを行わない。
         loose = {**CONFIG, "grade_rank": ""}
-        record = svwb.validate_record(make_record(rank="AA0", grade="EPIC"), loose)
-        self.assertEqual(record["grade"], "EPIC")
+        record = svwb.validate_record(make_record(rank="AA0", opp_grade="EPIC"), loose)
+        self.assertEqual(record["opp_grade"], "EPIC")
 
     def test_reports_every_bad_field_at_once(self):
         with self.assertRaises(svwb.ValidationError) as ctx:
@@ -383,13 +383,13 @@ class TestFilter(unittest.TestCase):
         self.assertEqual(len(svwb.filter_records(self.records, my_class="エルフ", my_deck="B")), 1)
         self.assertEqual(len(svwb.filter_records(self.records, opp_class="ロイヤル")), 2)
 
-    def test_grade_filter(self):
+    def test_opp_grade_filter(self):
         records = [
-            make_record(rank="Grand Master", grade="EPIC"),
-            make_record(rank="Grand Master", grade="ULTIMATE"),
-            make_record(rank="AA0", grade=""),
+            make_record(rank="Grand Master", opp_grade="EPIC"),
+            make_record(rank="Grand Master", opp_grade="ULTIMATE"),
+            make_record(rank="AA0", opp_grade=""),
         ]
-        self.assertEqual(len(svwb.filter_records(records, grade="EPIC")), 1)
+        self.assertEqual(len(svwb.filter_records(records, opp_grade="EPIC")), 1)
         self.assertEqual(len(svwb.filter_records(records)), 3)
 
     def test_mode_and_event_filters(self):
@@ -475,12 +475,12 @@ class TestStats(unittest.TestCase):
 
     def test_grade_breakdown_only_counts_records_with_a_grade(self):
         records = [
-            make_record(rank="Grand Master", grade="EPIC", result="win"),
-            make_record(rank="Grand Master", grade="EPIC", result="loss"),
-            make_record(rank="Grand Master", grade="ULTIMATE", result="win"),
-            make_record(rank="AA0", grade="", result="win"),
+            make_record(rank="Grand Master", opp_grade="EPIC", result="win"),
+            make_record(rank="Grand Master", opp_grade="EPIC", result="loss"),
+            make_record(rank="Grand Master", opp_grade="ULTIMATE", result="win"),
+            make_record(rank="AA0", opp_grade="", result="win"),
         ]
-        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_grade"]
+        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_opp_grade"]
         by_key = {row["key"]: row for row in rows}
         self.assertEqual(set(by_key), {"EPIC", "ULTIMATE"})
         self.assertEqual(by_key["EPIC"], {"key": "EPIC", "games": 2, "wins": 1,
@@ -489,25 +489,25 @@ class TestStats(unittest.TestCase):
     def test_grade_breakdown_follows_the_ladder_not_game_count(self):
         # 試合数順に並べると BEYOND が EPIC未満 の上に来たり下に来たりして
         # 梯子として読めない。config の並び順を維持する。
-        records = ([make_record(rank="Grand Master", grade="ULTIMATE")] * 5
-                   + [make_record(rank="Grand Master", grade="EPIC未満")]
-                   + [make_record(rank="Grand Master", grade="BEYOND")] * 3
-                   + [make_record(rank="Grand Master", grade="EPIC")] * 2)
-        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_grade"]
+        records = ([make_record(rank="Grand Master", opp_grade="ULTIMATE")] * 5
+                   + [make_record(rank="Grand Master", opp_grade="EPIC未満")]
+                   + [make_record(rank="Grand Master", opp_grade="BEYOND")] * 3
+                   + [make_record(rank="Grand Master", opp_grade="EPIC")] * 2)
+        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_opp_grade"]
         self.assertEqual([row["key"] for row in rows],
                          ["EPIC未満", "EPIC", "ULTIMATE", "BEYOND"])
 
     def test_grade_breakdown_keeps_unknown_grades_at_the_end(self):
         records = [
-            make_record(rank="Grand Master", grade="MYTHIC"),
-            make_record(rank="Grand Master", grade="EPIC"),
+            make_record(rank="Grand Master", opp_grade="MYTHIC"),
+            make_record(rank="Grand Master", opp_grade="EPIC"),
         ]
-        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_grade"]
+        rows = svwb.compute_stats(records, self.classes, CONFIG["grades"])["by_opp_grade"]
         self.assertEqual([row["key"] for row in rows], ["EPIC", "MYTHIC"])
 
     def test_grade_breakdown_is_empty_without_grades(self):
         # グラマス未到達なら空。UI 側はこれを見てセクションごと隠す。
-        self.assertEqual(svwb.compute_stats(self.records, self.classes)["by_grade"], [])
+        self.assertEqual(svwb.compute_stats(self.records, self.classes)["by_opp_grade"], [])
 
     def test_my_class_breakdown(self):
         # ブラウザのクラス別円グラフがこの内訳をそのまま描く。
@@ -595,20 +595,20 @@ class TestHttpApi(unittest.TestCase):
         status, body = self.request("GET", "/api/stats?my_class=%E3%83%89%E3%83%A9%E3%82%B4%E3%83%B3")
         self.assertEqual(body["overall"]["games"], 0)
 
-    def test_045_grade_roundtrip_and_filter(self):
+    def test_045_opp_grade_roundtrip_and_filter(self):
         _, created = self.request("POST", "/api/records",
-                                  make_record(rank="Grand Master", grade="ULTIMATE"))
-        self.assertEqual(created["grade"], "ULTIMATE")
+                                  make_record(rank="Grand Master", opp_grade="ULTIMATE"))
+        self.assertEqual(created["opp_grade"], "ULTIMATE")
 
-        status, body = self.request("GET", "/api/stats?grade=ULTIMATE")
+        status, body = self.request("GET", "/api/stats?opp_grade=ULTIMATE")
         self.assertEqual(status, 200)
         self.assertEqual(body["overall"]["games"], 1)
-        self.assertEqual([r["key"] for r in body["by_grade"]], ["ULTIMATE"])
+        self.assertEqual([r["key"] for r in body["by_opp_grade"]], ["ULTIMATE"])
 
         status, body = self.request("POST", "/api/records",
-                                    make_record(rank="AA0", grade="ULTIMATE"))
+                                    make_record(rank="AA0", opp_grade="ULTIMATE"))
         self.assertEqual(status, 400)
-        self.assertIn("grade", body["fields"])
+        self.assertIn("opp_grade", body["fields"])
 
         self.request("DELETE", f"/api/records/{created['id']}")
 
