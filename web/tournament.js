@@ -80,6 +80,14 @@ function loadSetup() {
   } catch (error) {
     saved = null;
   }
+  // 大会は日をまたがない。過ぎた日の設定が残っていると、その大会名・その日付の
+  // まま記録し続けてしまうので、空から始める。先の日付 (前の晩に用意した場合)
+  // はそのまま残す。
+  if (saved && typeof saved.played_at === "string" && saved.played_at < today()) {
+    return { event: "", played_at: today(), decks: DECK_MARKS.map(emptyDeck),
+             open: true, cleared: true };
+  }
+
   const decks = Array.isArray(saved && saved.decks) ? saved.decks : [];
   const setup = {
     event: (saved && typeof saved.event === "string") ? saved.event : "",
@@ -161,6 +169,7 @@ function syncSetup() {
   renderDeckChoices();
   $("setup-digest").textContent = setupDigest();
   const named = Boolean(state.setup.event);
+  if (named) $("setup-note").hidden = true;
   $("submit-button").disabled = !named;
   $("round-hint").textContent = named
     ? "大会名・日付・使用デッキは次のラウンドに引き継がれます"
@@ -467,7 +476,9 @@ async function init() {
   replaceOptions($("field-opp_class2"), state.config.classes, { placeholder: "不明" });
   replaceOptions($("filter-my_class"), state.config.classes, { placeholder: "すべて" });
 
-  writeSetup(loadSetup());
+  const saved = loadSetup();
+  writeSetup(saved);
+  $("setup-note").hidden = !saved.cleared;
   syncSetup();
   // 既定では今の大会だけを見る。他の大会や全大会は絞り込みで切り替える。
   focusCurrentEvent();
