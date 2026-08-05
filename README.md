@@ -36,7 +36,8 @@ python3 svwb.py stats                       # 全期間
 python3 svwb.py stats --since 2026-08-01    # 期間で絞る
 python3 svwb.py stats --my-class エルフ      # クラスで絞る
 python3 svwb.py stats --grade EPIC          # CR グレードで絞る
-python3 svwb.py stats --mode ladder         # ランクマッチだけ (--mode tournament で大会だけ)
+python3 svwb.py stats --mode tournament     # 大会だけ (既定はランクマッチのみ)
+python3 svwb.py stats --mode all            # ランクマッチと大会を混ぜる
 python3 svwb.py stats --event WB杯           # 大会名で絞る
 python3 svwb.py stats --json                # JSON で出す
 ```
@@ -143,7 +144,9 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 
 **それぞれのタブは自分のモードの戦績だけを扱う。** ランクマッチのタブ (履歴・集計) に大会の戦績は出ないし、その逆も無い。混ざらないので、ランクマッチの勝率が大会の BO1 で歪むことはない。
 
-両方をまとめて見たいときは CLI か API で: `python3 svwb.py stats` (モード指定なし = 全部) / `/api/stats`。
+**モードを指定しないときはランクマッチだけを数える。** CLI (`svwb.py stats`) も API (`/api/stats`) もそうで、両方まとめて見たいときだけ `--mode all` / `?mode=all` と明示する。形式が違う (大会は 2 デッキ BO1) ので、混ぜた勝率が何を意味するのか説明できない — 混ぜるなら意識して混ぜる、という既定にしてある。
+
+ターミナルの出力は先頭に `対象: ランクマッチ` と出るので、何を数えた数字なのかは常に読み取れる。
 
 ## 出る集計
 
@@ -158,6 +161,8 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 **両方のタブが同じ描画を使う** (`web/stats.js`)。違うのは対象だけで、ランクマッチのタブはランクマッチの戦績、大会のタブは大会の戦績を集計する。CR とグレードはランクマッチ帯にしか無い値なので、大会のタブにはそのセクションが無い。
 
 絞り込みは、ランクマッチのタブが 期間・自分クラス・自分デッキ・グレード、大会のタブが 大会・期間・自分クラス・自分デッキ。どちらも API のクエリ (`/api/stats?since=…&grade=EPIC`) にそのまま対応する。
+
+**モードを指定しない集計はランクマッチのみ** (`svwb.py stats` / `/api/stats`)。両方を混ぜるときは `--mode all` / `?mode=all` と明示する。詳しくは [タブとデータの関係](#タブとデータの関係)。
 
 ### 画面の並び
 
@@ -232,7 +237,7 @@ CR を入力するとグレードが自動で選ばれる。対応は `config.js
 {"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "grade": "", "cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "opp_class2": "ドラゴン", "opp_deck2": "財宝ドラゴン", "round": 3, "id": "…", "created_at": "…"}
 ```
 
-`mode` を持たない行 (大会機能より前に記録したもの) はランクマッチとして扱われる。`--mode ladder` や絞り込みの「ランクマッチ」にもそのまま含まれるので、古いデータを書き換える必要はない。
+`mode` を持たない行 (大会機能より前に記録したもの) はランクマッチとして扱われる。既定の集計にもそのまま含まれるので、古いデータを書き換える必要はない。
 
 追加は追記のみなので、その日足した試合が git の差分にそのまま出る。別のファイルを使いたい場合は `--data` で指定する。
 
@@ -247,7 +252,7 @@ python3 svwb.py --data /path/to/records.jsonl serve
 | メソッド | パス | 内容 |
 |---|---|---|
 | `GET` | `/api/config` | クラス / ランク / グレードの一覧 |
-| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `grade` `mode` `event` で絞り込み) |
+| `GET` | `/api/records` | 戦績一覧 (`since` `until` `my_class` `my_deck` `opp_class` `grade` `mode` `event` で絞り込み)。`mode` の既定は `ladder`、両方まとめては `mode=all` |
 | `POST` | `/api/records` | 追加 |
 | `PUT` | `/api/records/{id}` | 更新 |
 | `DELETE` | `/api/records/{id}` | 削除 |

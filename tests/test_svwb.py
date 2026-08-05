@@ -305,6 +305,18 @@ class TestTournamentFields(unittest.TestCase):
         self.assertEqual(set(ladder), set(tournament))
 
 
+class TestCli(unittest.TestCase):
+    def test_stats_defaults_to_ladder(self):
+        # 何も指定しないときに大会を混ぜない、が既定であることを固定する。
+        args = svwb.build_parser().parse_args(["stats"])
+        self.assertEqual(args.mode, "ladder")
+        self.assertEqual(svwb.build_parser().parse_args(["stats", "--mode", "all"]).mode, "all")
+
+    def test_stats_rejects_unknown_mode(self):
+        with self.assertRaises(SystemExit):
+            svwb.build_parser().parse_args(["stats", "--mode", "draft"])
+
+
 class TestStore(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -424,6 +436,13 @@ class TestFilter(unittest.TestCase):
         self.assertEqual(len(svwb.filter_records(records, event="A杯")), 2)
         self.assertEqual(
             len(svwb.filter_records(records, mode="tournament", event="B杯")), 1)
+
+    def test_mode_all_does_not_filter(self):
+        # "all" は「絞り込まない」という指定。保存できる値ではない。
+        records = [make_record(mode="tournament", event="A杯"), make_record(mode="ladder")]
+        self.assertEqual(len(svwb.filter_records(records, mode="all")), 2)
+        self.assertNotIn("all", svwb.MODES)
+        self.assertIn("all", svwb.FILTER_MODES)
 
     def test_records_without_a_mode_count_as_ladder(self):
         # 大会機能より前に記録した戦績には mode が無い (make_record も持たない)。
@@ -684,6 +703,35 @@ class TestHttpApi(unittest.TestCase):
         self.assertNotIn("連携ロイヤル", {row["key"] for row in body["by_my_deck"]})
 
         for record_id in created:
+            self.request("DELETE", f"/api/records/{record_id}")
+
+    def test_048_defaults_to_ladder_without_a_mode(self):
+        """モードを指定しないときは大会を混ぜない。
+
+        形式が違う (大会は 2 デッキ BO1) ので、混ぜた勝率は何も意味しない。
+        まとめて見たいときだけ mode=all を明示する。
+        """
+        _, ladder = self.request("POST", "/api/records", make_record(result="win"))
+        _, tournament = self.request("POST", "/api/records", make_record(
+            mode="tournament", event="既定の確認", round=1, result="win"))
+
+        status, body = self.request("GET", "/api/records")
+        ids = [r["id"] for r in body["records"]]
+        self.assertIn(ladder["id"], ids)
+        self.assertNotIn(tournament["id"], ids)
+
+        status, body = self.request("GET", "/api/records?mode=all")
+        self.assertIn(tournament["id"], [r["id"] for r in body["records"]])
+
+        # 集計も同じ既定。指定なし = ランクマッチのみ。
+        status, default_stats = self.request("GET", "/api/stats")
+        status, ladder_stats = self.request("GET", "/api/stats?mode=ladder")
+        status, all_stats = self.request("GET", "/api/stats?mode=all")
+        self.assertEqual(default_stats["overall"], ladder_stats["overall"])
+        self.assertEqual(all_stats["overall"]["games"],
+                         ladder_stats["overall"]["games"] + 1)
+
+        for record_id in (ladder["id"], tournament["id"]):
             self.request("DELETE", f"/api/records/{record_id}")
 
     def test_047_tournament_fields_need_tournament_mode(self):

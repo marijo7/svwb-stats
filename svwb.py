@@ -53,6 +53,18 @@ RESULTS = ("win", "loss")
 MODES = ("ladder", "tournament")
 DEFAULT_MODE = "ladder"
 
+#: 絞り込みで指定できるモード。"all" は絞り込まない、という指定であって
+#: 戦績に保存される値ではない (保存できるのは MODES のみ)。
+#:
+#: 何も指定しないときが "all" ではなく "ladder" なのは、ランクマッチと大会が
+#: 別形式 (大会は 2 デッキ BO1) で、混ぜた勝率が何を意味するのか説明できないため。
+#: 混ぜたいときは指定して混ぜる。
+FILTER_MODES = MODES + ("all",)
+
+#: 集計の対象としてターミナルに出す表示名。
+MODE_LABELS = {"ladder": "ランクマッチ", "tournament": "大会 (2 デッキ BO1)",
+               "all": "ランクマッチ + 大会"}
+
 #: 入力を受け付ける自由記述フィールドの最大長。
 MAX_TEXT = 120
 MAX_NOTE = 1000
@@ -358,8 +370,12 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
                    grade: str = "", mode: str = "", event: str = "") -> list[dict]:
     """期間 / クラス / デッキ / グレード / モード / 大会で絞り込む。
 
-    空文字の条件は無視する。mode を持たない古い戦績はランクマッチとして扱うので、
-    `mode="ladder"` には大会機能を足す前の記録も含まれる。
+    空文字の条件は無視する。mode は空文字と "all" のどちらも「絞り込まない」で、
+    ここでは既定を持たない (何も指定しなければ全部返す)。CLI と HTTP は
+    それぞれの入口で DEFAULT_MODE を既定にしている。
+
+    mode を持たない古い戦績はランクマッチとして扱うので、`mode="ladder"` には
+    大会機能を足す前の記録も含まれる。
     """
     out = []
     for record in records:
@@ -376,7 +392,7 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
             continue
         if grade and (record.get("grade") or "") != grade:
             continue
-        if mode and (record.get("mode") or DEFAULT_MODE) != mode:
+        if mode and mode != "all" and (record.get("mode") or DEFAULT_MODE) != mode:
             continue
         if event and (record.get("event") or "") != event:
             continue
@@ -500,9 +516,13 @@ class Handler(BaseHTTPRequestHandler):
             raise ValidationError({"_": f"JSON として読めません: {exc}"}) from exc
 
     def _query_filters(self, query: dict[str, list[str]]) -> dict:
-        return {name: (query.get(name) or [""])[0]
-                for name in ("since", "until", "my_class", "my_deck", "opp_class",
-                             "grade", "mode", "event")}
+        filters = {name: (query.get(name) or [""])[0]
+                   for name in ("since", "until", "my_class", "my_deck", "opp_class",
+                                "grade", "mode", "event")}
+        # モードを指定しないときはランクマッチ。混ぜた数字を既定にしないための
+        # 既定値で、両方まとめて見たいときは mode=all を明示する。
+        filters["mode"] = filters["mode"] or DEFAULT_MODE
+        return filters
 
     def _record_id(self, path: str) -> str:
         return unquote(path[len("/api/records/"):]).strip("/")
@@ -716,6 +736,11 @@ def cmd_stats(args: argparse.Namespace) -> int:
         print(json.dumps(stats, ensure_ascii=False, indent=2))
         return 0
 
+    # 何を数えているかを先に出す。既定がランクマッチのみなので、大会の分が
+    # 入っていないことに気付かないまま数字を読まないようにする。
+    print(f"対象: {MODE_LABELS[args.mode]}")
+    print()
+
     if not records:
         print("条件に合う戦績がありません。")
         return 0
@@ -795,7 +820,8 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
     stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
     stats.add_argument("--grade", help="CR グレードで絞り込む (EPIC 等)")
-    stats.add_argument("--mode", choices=MODES, help="ランクマッチ / 大会のどちらかに絞り込む")
+    stats.add_argument("--mode", choices=FILTER_MODES, default=DEFAULT_MODE,
+                       help="集計する対象 (既定: ランクマッチのみ。all で大会も混ぜる)")
     stats.add_argument("--event", help="大会名で絞り込む")
     stats.add_argument("--json", action="store_true", help="JSON で出力する")
     stats.set_defaults(func=cmd_stats)
