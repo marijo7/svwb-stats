@@ -159,22 +159,79 @@
       </div>
       <div class="workspace-col">
 
-        <!-- ---------------- この大会の成績 ---------------- -->
-        <section class="card" aria-labelledby="summary-title">
-          <h2 id="summary-title">この大会の成績</h2>
-          <div id="summary-empty" class="empty">まだこの大会の記録がありません。</div>
-          <div id="summary-body" hidden>
-            <div class="stat-row" id="headline"></div>
-
-            <h3>使用デッキ別</h3>
-            <p class="caption">2 デッキのどちらが勝っているか。BO1 なので 1 ラウンド = 1 試合です。</p>
-            <div class="table-scroll"><table class="breakdown" id="by-deck"></table></div>
-
-            <h3>相手クラス別</h3>
-            <div class="table-scroll"><table class="breakdown" id="by-opp"></table></div>
+        <!-- ---------------- 絞り込み ----------------
+             既定は「今の大会」。過去の大会や全大会にも切り替えられる。
+             ランクマッチ側の絞り込みと違い、グレードは無い (大会には付かない)。 -->
+        <section class="card filters" aria-labelledby="filter-title">
+          <h2 id="filter-title">絞り込み</h2>
+          <div class="grid grid-5">
+            <label class="field">
+              <span>大会</span>
+              <select id="filter-event"></select>
+            </label>
+            <label class="field">
+              <span>開始日</span>
+              <input type="date" id="filter-since">
+            </label>
+            <label class="field">
+              <span>終了日</span>
+              <input type="date" id="filter-until">
+            </label>
+            <label class="field">
+              <span>自分クラス</span>
+              <select id="filter-my_class"></select>
+            </label>
+            <label class="field">
+              <span>自分デッキ</span>
+              <select id="filter-my_deck"></select>
+            </label>
           </div>
           <div class="actions">
-            <a class="button-link" id="full-stats-link" href="/">この大会の集計を詳しく見る</a>
+            <button type="button" id="filter-reset">今の大会に戻す</button>
+            <span class="hint" id="filter-summary"></span>
+          </div>
+        </section>
+
+        <!-- ---------------- 集計 ----------------
+             ランクマッチの画面と同じ描画 (stats.js)。CR とグレードのセクションは
+             大会には付かない値なので置いていない。 -->
+        <section class="card" aria-labelledby="stats-title">
+          <h2 id="stats-title">集計</h2>
+          <div id="stats-empty" class="empty" hidden>この条件に合う大会の戦績がありません。</div>
+          <div id="stats-body" hidden>
+            <div class="stat-row" id="headline"></div>
+
+            <div class="section-head">
+              <h3>クラス別の内訳</h3>
+              <div class="toggles" id="pie-scope">
+                <label><input type="radio" name="pie_scope" value="my" checked><span>自分クラス</span></label>
+                <label><input type="radio" name="pie_scope" value="opp"><span>相手クラス</span></label>
+              </div>
+            </div>
+            <p class="caption">試合数の割合。相手クラス側は、その大会にどのクラスが集まっていたか（環境）として読めます。</p>
+            <div class="pie-wrap">
+              <div id="pie-chart"></div>
+              <div class="table-scroll"><table class="breakdown pie-legend" id="pie-legend"></table></div>
+            </div>
+
+            <h3>対面マトリクス</h3>
+            <p class="caption">行 = 使用デッキのクラス / 列 = 相手クラス。セルは 勝率 (勝-敗)、<code>–</code> は未対戦。</p>
+            <div class="table-scroll">
+              <table class="matrix" id="matrix"></table>
+            </div>
+
+            <div class="two-col">
+              <div>
+                <h3>使用デッキ別</h3>
+                <p class="caption">2 デッキのどちらが勝っているか。</p>
+                <div class="table-scroll"><table class="breakdown" id="by-deck"></table></div>
+              </div>
+              <div>
+                <h3>相手クラス別</h3>
+                <p class="caption">BO1 なので 1 ラウンド = 1 試合。</p>
+                <div class="table-scroll"><table class="breakdown" id="by-opp"></table></div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -196,6 +253,7 @@
   </footer>
 
   <script src="/common.js"></script>
+  <script src="/stats.js"></script>
   <script src="/tournament.js"></script>
 </body>
 </html>

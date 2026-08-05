@@ -19,11 +19,24 @@ const SETUP_KEY = "svwb-stats:tournament-setup";
 /** デッキ枠の呼び名。2 デッキ BO1 なので枠は 2 つ。 */
 const DECK_MARKS = ["①", "②"];
 
+/** 絞り込みの入力欄 id と、それが対応する API のクエリ名。 */
+const FILTERS = {
+  "filter-event": "event",
+  "filter-since": "since",
+  "filter-until": "until",
+  "filter-my_class": "my_class",
+  "filter-my_deck": "my_deck",
+};
+const FILTER_IDS = Object.keys(FILTERS);
+
 const state = {
   config: { classes: [] },
   setup: { event: "", played_at: today(), decks: [] },
-  records: [],        // 今開いている大会の記録
+  records: [],        // 絞り込み後の戦績 (ラウンド一覧に出るもの)
+  allRecords: [],     // 大会の全戦績。候補作りと「次のラウンド」の判定に使う
+  stats: null,
   editing: null,      // 編集中の戦績 (そのまま持って played_at / event を引き継ぐ)
+  pieScope: "my",     // クラス別円グラフの対象 ("my" = 自分クラス / "opp" = 相手クラス)
 };
 
 // ---------------------------------------------------------------------------
@@ -155,29 +168,8 @@ function syncSetup() {
 }
 
 // ---------------------------------------------------------------------------
-// 成績 (ランクマッチ画面と同じ /api/stats の結果を描くだけ)
+// ラウンド一覧
 // ---------------------------------------------------------------------------
-
-function renderSummary(stats) {
-  const overall = stats ? stats.overall : { games: 0, wins: 0, losses: 0, winrate: 0 };
-  const hasData = overall.games > 0;
-  $("summary-empty").hidden = hasData;
-  $("summary-body").hidden = !hasData;
-
-  $("topbar-summary").replaceChildren(
-    el("strong", { text: hasData ? `${overall.wins}-${overall.losses}` : "—" }),
-    document.createTextNode(hasData ? ` / 勝率 ${pct(overall.winrate)}` : " / 未記録"),
-  );
-  if (!hasData) return;
-
-  $("headline").replaceChildren(
-    statCard("この大会", overall),
-    statCard("先攻", stats.turn_order.first),
-    statCard("後攻", stats.turn_order.second),
-  );
-  renderBreakdown("by-deck", stats.by_my_deck, "デッキ");
-  renderBreakdown("by-opp", stats.by_opp_class, "相手クラス");
-}
 
 function renderRounds(records) {
   const table = $("rounds");
@@ -185,15 +177,14 @@ function renderRounds(records) {
   $("rounds-count").textContent = records.length ? `(${records.length} 戦)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["R", "対戦相手", "自分", "相手", "先後", "結果", "メモ", ""].map(
+    el("tr", {}, ["大会", "R", "対戦相手", "自分", "相手", "先後", "結果", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
   if (!records.length) {
     table.appendChild(el("tbody", {}, [
       el("tr", {}, [el("td", {
-        colspan: "8", class: "empty-cell",
-        text: state.setup.event ? "この大会の記録はまだありません。" : "大会名を入力すると、その大会の記録が出ます。",
+        colspan: "9", class: "empty-cell", text: "この条件に合う大会の戦績がありません。",
       })]),
     ]));
     return;
@@ -202,6 +193,7 @@ function renderRounds(records) {
   const body = el("tbody");
   for (const record of records) {
     body.appendChild(el("tr", { class: record.id === (state.editing && state.editing.id) ? "editing" : "" }, [
+      el("td", { class: "event", text: record.event || "(名前なし)" }),
       el("td", { text: record.round ? `R${record.round}` : "" }),
       el("td", { text: record.opponent || "" }),
       el("td", { text: side(record.my_class, record.my_deck) }),
@@ -237,9 +229,14 @@ function checkedValue(name) {
   return checked ? checked.value : "";
 }
 
-/** 次に記録するラウンド番号。記録済みの最大 + 1。 */
+/**
+ * 次に記録するラウンド番号。今の大会で記録済みの最大 + 1。
+ * 絞り込みで別の大会を見ている間も、入力するのは今の大会なのでそちらを数える。
+ */
 function nextRound() {
-  const rounds = state.records.map((record) => record.round || 0);
+  const rounds = state.allRecords
+    .filter((record) => (record.event || "") === state.setup.event)
+    .map((record) => record.round || 0);
   return Math.min(Math.max(0, ...rounds) + 1, 99);
 }
 
@@ -345,6 +342,9 @@ async function submitForm(event) {
     } else {
       await api("/api/records", { method: "POST", body: JSON.stringify(payload) });
       showFormError("");
+      // 別の大会を見ている最中なら、今記録したラウンドが見えるよう戻す。
+      const shown = $("filter-event").value;
+      if (shown && shown !== state.setup.event) focusCurrentEvent();
       await refresh();
       resetForNextRound();
       return;
@@ -371,45 +371,90 @@ async function removeRecord(record) {
 // 読み込み
 // ---------------------------------------------------------------------------
 
-/** 入力済みのデッキ名 / 大会名を候補にする。全戦績から作る。 */
-function fillDatalists(records) {
+/** 絞り込み欄の値を API のクエリ名で拾う。この画面は大会固定。 */
+function filterValues() {
+  return {
+    ...Object.fromEntries(Object.entries(FILTERS).map(([id, name]) => [name, $(id).value])),
+    mode: "tournament",
+  };
+}
+
+function describeFilters() {
+  const parts = [$("filter-event").value || "すべての大会"];
+  if ($("filter-since").value) parts.push(`${$("filter-since").value} 以降`);
+  if ($("filter-until").value) parts.push(`${$("filter-until").value} 以前`);
+  if ($("filter-my_class").value) parts.push($("filter-my_class").value);
+  if ($("filter-my_deck").value) parts.push($("filter-my_deck").value);
+  $("filter-summary").textContent = `対象: ${parts.join(" / ")}`;
+}
+
+/**
+ * 大会の全戦績から選択肢を作る。今の大会は 1 戦も記録していなくても選べるよう、
+ * 記録済みの大会名に足しておく (これが絞り込みの既定値になる)。
+ */
+function fillDynamicOptions(records) {
   const decks = new Set();
+  const myDecks = new Set();
   const events = [];
   for (const record of records) {
-    if (record.my_deck) decks.add(record.my_deck);
+    if (record.my_deck) { decks.add(record.my_deck); myDecks.add(record.my_deck); }
     if (record.opp_deck) decks.add(record.opp_deck);
     if (record.opp_deck2) decks.add(record.opp_deck2);
     if (record.event && !events.includes(record.event)) events.push(record.event);
   }
+  events.reverse();   // 新しい大会ほど上に
+  if (state.setup.event && !events.includes(state.setup.event)) events.unshift(state.setup.event);
+
   $("deck-list").replaceChildren(...[...decks].sort().map((deck) => el("option", { value: deck })));
-  $("event-list").replaceChildren(...events.reverse().map((name) => el("option", { value: name })));
+  $("event-list").replaceChildren(...events.map((name) => el("option", { value: name })));
+  replaceOptions($("filter-event"), events, { placeholder: "すべての大会" });
+  replaceOptions($("filter-my_deck"), [...myDecks].sort(), { placeholder: "すべて" });
+}
+
+/**
+ * 絞り込みを「今の大会」に戻す。大会名が空なら全大会。
+ *
+ * 1 戦も記録していない大会はまだ選択肢に無いので、その場で足してから選ぶ
+ * (選択肢は戦績から作られるため。次の refresh で作り直しても値は残る)。
+ */
+function focusCurrentEvent() {
+  for (const id of FILTER_IDS) $(id).value = "";
+  const select = $("filter-event");
+  const known = [...select.options].some((option) => option.value === state.setup.event);
+  if (state.setup.event && !known) {
+    select.appendChild(el("option", { value: state.setup.event, text: state.setup.event }));
+  }
+  select.value = state.setup.event;
 }
 
 async function refresh() {
-  const event = state.setup.event;
-  const all = await api("/api/records");
-  fillDatalists(all.records);
+  // 候補と「次のラウンド」は絞り込みに関係なく大会の全戦績から作る。
+  const all = await api("/api/records?mode=tournament");
+  state.allRecords = all.records;
+  fillDynamicOptions(all.records);
 
-  const link = $("full-stats-link");
-  link.href = `/${toQuery({ mode: "tournament", event })}`;
-  link.hidden = !event;
-
-  if (!event) {
-    state.records = [];
-    renderSummary(null);
-    renderRounds([]);
-    return;
-  }
-
-  const query = toQuery({ mode: "tournament", event });
+  const query = toQuery(filterValues());
   const [{ records }, stats] = await Promise.all([
     api(`/api/records${query}`),
     api(`/api/stats${query}`),
   ]);
-  // 記録した順ではなくラウンド順に並べる。ラウンド未設定は末尾。
-  state.records = [...records].sort((a, b) => (a.round || 99) - (b.round || 99));
-  renderSummary(stats);
+  // 新しい大会を上に、その中はラウンド順 (ラウンド未設定は末尾)。複数の大会を
+  // 並べたときに、同じ大会のラウンドが飛び飛びにならないよう大会名でまとめる。
+  state.records = [...records].sort((a, b) =>
+    (b.played_at || "").localeCompare(a.played_at || "")
+    || (a.event || "").localeCompare(b.event || "")
+    || (a.round || 99) - (b.round || 99));
+  state.stats = stats;
+
+  describeFilters();
+  renderStats(stats, { pieScope: state.pieScope, headline: "全体" });
   renderRounds(state.records);
+
+  const overall = stats.overall;
+  $("topbar-summary").replaceChildren(
+    el("strong", { text: overall.games ? `${overall.wins}-${overall.losses}` : "—" }),
+    document.createTextNode(overall.games ? ` / 勝率 ${pct(overall.winrate)}` : " / 未記録"),
+  );
   if (!state.editing) $("field-round").value = nextRound();
 }
 
@@ -420,9 +465,12 @@ async function init() {
   }
   replaceOptions($("field-opp_class"), state.config.classes, { placeholder: "選択" });
   replaceOptions($("field-opp_class2"), state.config.classes, { placeholder: "不明" });
+  replaceOptions($("filter-my_class"), state.config.classes, { placeholder: "すべて" });
 
   writeSetup(loadSetup());
   syncSetup();
+  // 既定では今の大会だけを見る。他の大会や全大会は絞り込みで切り替える。
+  focusCurrentEvent();
 
   // デッキの登録はその場で使用デッキの選択肢へ反映する (通信は不要)。
   for (const id of ["setup-deck1_class", "setup-deck1_deck", "setup-deck2_class", "setup-deck2_deck"]) {
@@ -430,17 +478,36 @@ async function init() {
   }
   // 畳んだ / 開いたを覚える。次に開いたときも同じ状態で始まる。
   $("setup-panel").addEventListener("toggle", syncSetup);
-  // 大会名と日付を変えると見ている大会そのものが変わるので、取り直す。
+  // 大会名と日付を変えると記録先の大会そのものが変わる。絞り込みもその大会へ
+  // 合わせ直してから取り直す (入力している大会と見ている集計をずらさない)。
   for (const id of ["setup-event", "setup-played_at"]) {
     $(id).addEventListener("change", () => {
       if (state.editing) cancelEdit();
       syncSetup();
+      focusCurrentEvent();
       refresh().catch(reportFatal);
     });
   }
 
   $("round-form").addEventListener("submit", submitForm);
   $("cancel-edit").addEventListener("click", cancelEdit);
+
+  for (const id of FILTER_IDS) {
+    $(id).addEventListener("change", () => refresh().catch(reportFatal));
+  }
+  $("filter-reset").addEventListener("click", () => {
+    focusCurrentEvent();
+    refresh().catch(reportFatal);
+  });
+
+  // 円グラフの自分 / 相手切り替え。同じ集計結果の見方を変えるだけなので
+  // サーバーには取りに行かない。
+  for (const input of document.querySelectorAll('input[name="pie_scope"]')) {
+    input.addEventListener("change", () => {
+      state.pieScope = input.value;
+      if (state.stats) renderPie(state.stats, state.pieScope);
+    });
+  }
 
   await refresh();
 }

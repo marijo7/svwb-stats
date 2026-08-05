@@ -8,8 +8,11 @@
  * 集計ロジックを Python 側に一本化しておくと、CLI (`svwb.py stats`) と
  * ブラウザで数字がずれない。
  *
- * $ / el / api などの土台は common.js にある (先に読み込まれる)。
- * 大会の入力画面は tournament.js。集計はこの画面のものを共用する。
+ * $ / el / api などの土台は common.js、集計の描画は stats.js にある
+ * (どちらも先に読み込まれ、大会の画面 tournament.js と共用している)。
+ *
+ * この画面が扱うのはランクマッチの戦績だけ。大会の戦績は大会のタブが持つので、
+ * 一覧も集計も mode=ladder に固定して取りに行く。
  */
 
 /** 直近の入力。連戦を記録するとき毎回選び直さずに済むよう引き継ぐ。 */
@@ -22,19 +25,8 @@ const FILTERS = {
   "filter-my_class": "my_class",
   "filter-my_deck": "my_deck",
   "filter-grade": "grade",
-  "filter-mode": "mode",
-  "filter-event": "event",
 };
 const FILTER_IDS = Object.keys(FILTERS);
-
-/** モードの表示名。値は API / 保存されるデータと同じ。 */
-const MODE_LABEL = { ladder: "ランクマッチ", tournament: "大会" };
-
-/**
- * 大会の画面 (tournament.html) でしか入力しない項目。この画面では編集しないが、
- * 編集時にそのまま送り返さないと消えてしまうので hidden で持ち回る。
- */
-const HIDDEN_TOURNAMENT_FIELDS = ["mode", "event", "round", "opponent", "opp_class2", "opp_deck2"];
 
 /** 履歴の既定表示件数。 */
 const LOG_PAGE_SIZE = 30;
@@ -52,218 +44,14 @@ const state = {
 // 描画ヘルパー
 // ---------------------------------------------------------------------------
 
-/** 絞り込み欄の値を API のクエリ名で拾う。 */
+/** 絞り込み欄の値を API のクエリ名で拾う。この画面はランクマッチ固定。 */
 function filterValues() {
-  return Object.fromEntries(
-    Object.entries(FILTERS).map(([id, name]) => [name, $(id).value]));
+  return {
+    ...Object.fromEntries(Object.entries(FILTERS).map(([id, name]) => [name, $(id).value])),
+    mode: "ladder",
+  };
 }
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-/** SVG は名前空間が違うので createElement では作れない (中身は common.js の el と同じ)。 */
-function svgEl(tag, props = {}, children = []) {
-  return build(document.createElementNS(SVG_NS, tag), props, children);
-}
-
-/**
- * 勝率をセルの背景色にする。
- * 試合数が少ないマスは色を薄くして、たまたま 1 勝しただけのマスが
- * 「得意な対面」に見えないようにする。
- */
-function heatStyle(cell) {
-  if (!cell.games) return "";
-  const hue = cell.winrate >= 0.5 ? "var(--win)" : "var(--loss)";
-  const distance = Math.abs(cell.winrate - 0.5) * 2;      // 0.5 から離れるほど濃く
-  const confidence = Math.min(cell.games / 8, 1);          // 8 戦で最大の濃さ
-  const strength = Math.round(distance * confidence * 55);
-  return `background: color-mix(in srgb, ${hue} ${strength}%, transparent);`;
-}
-
-// ---------------------------------------------------------------------------
-// 集計の描画
-// ---------------------------------------------------------------------------
-
-function renderHeadline(stats) {
-  $("headline").replaceChildren(
-    statCard("全体", stats.overall),
-    statCard("先攻", stats.turn_order.first),
-    statCard("後攻", stats.turn_order.second),
-  );
-}
-
-function renderMatrix(stats) {
-  const classes = stats.classes;
-  const table = $("matrix");
-  table.replaceChildren();
-
-  // 列 (相手クラス) は全部出す。「まだ当たっていない相手」も知りたい情報なので。
-  // 行 (自分クラス) は使ったクラスだけ。7 クラス全部並べると空行だらけになる。
-  const played = classes.filter((mine) =>
-    classes.some((opp) => stats.matchup_matrix[mine][opp].games > 0));
-
-  const head = el("tr", {}, [el("th", { text: "自分 \\ 相手" })]);
-  for (const opp of classes) head.appendChild(el("th", { text: opp }));
-  head.appendChild(el("th", { text: "計" }));
-  table.appendChild(el("thead", {}, [head]));
-
-  const body = el("tbody");
-  for (const mine of played) {
-    const row = el("tr", {}, [el("th", { text: mine })]);
-    let games = 0;
-    let wins = 0;
-    for (const opp of classes) {
-      const cell = stats.matchup_matrix[mine][opp];
-      games += cell.games;
-      wins += cell.wins;
-      if (!cell.games) {
-        row.appendChild(el("td", { class: "empty-cell", text: "–" }));
-      } else {
-        row.appendChild(el("td", {
-          class: "cell",
-          style: heatStyle(cell),
-          title: `${mine} → ${opp}: ${cell.wins} 勝 ${cell.losses} 敗`,
-        }, [
-          document.createTextNode(pct(cell.winrate)),
-          el("span", { class: "games", text: `(${cell.wins}-${cell.losses})` }),
-        ]));
-      }
-    }
-    row.appendChild(el("td", {
-      text: games ? `${pct(wins / games)} (${games})` : "–",
-      class: games ? "" : "empty-cell",
-    }));
-    body.appendChild(row);
-  }
-  table.appendChild(body);
-}
-
-// ---------------------------------------------------------------------------
-// クラス別の円グラフ
-// ---------------------------------------------------------------------------
-
-/** 用意してある系列色 (--series-1 …) の数。あふれたクラスは「その他」にまとめる。 */
-const PIE_SLOTS = 7;
-
-/** ドーナツの寸法 (viewBox 200×200 上)。r は帯の中心線、width は帯の太さ。 */
-const PIE = { cx: 100, cy: 100, r: 68, width: 30, gap: 2 };
-
-/**
- * 内訳の行に色を割り当て、config のクラス順に並べ替える。
- *
- * 色はクラスに固定する。試合数順に振ると絞り込むたびに同じクラスの色が変わり、
- * 前の画面と見比べられなくなる。並び順も同じ理由で config 順に揃える
- * (試合数順にすると、1 戦増えただけで扇が入れ替わる)。
- */
-function pieSlices(rows, classes) {
-  const slot = new Map(classes.map((name, index) => [name, index]));
-  const slices = [];
-  let other = null;
-  for (const row of rows) {
-    const index = slot.has(row.key) ? slot.get(row.key) : PIE_SLOTS;
-    if (index < PIE_SLOTS) {
-      slices.push({ ...row, index, color: `var(--series-${index + 1})` });
-    } else {
-      // config に無いクラス (旧データ) と 8 クラス目以降の受け皿。
-      other = other || { key: "その他", games: 0, wins: 0, losses: 0, winrate: 0,
-                         index: PIE_SLOTS, color: "var(--series-other)" };
-      other.games += row.games;
-      other.wins += row.wins;
-      other.losses += row.losses;
-      other.winrate = other.wins / other.games;
-    }
-  }
-  slices.sort((a, b) => a.index - b.index);
-  if (other) slices.push(other);
-  return slices;
-}
-
-function sliceTitle(slice, total) {
-  return `${slice.key}: ${slice.games} 戦 (${pct(slice.games / total)}) / `
-    + `${slice.wins} 勝 ${slice.losses} 敗 · 勝率 ${pct(slice.winrate)}`;
-}
-
-/**
- * ドーナツを描く。扇は circle の破線 (dasharray) で作っている。円弧の path を
- * 組むより計算が少なく、1 クラスしか無いとき (= 円周まるごと 1 本) も
- * 特別扱いが要らない。
- */
-function renderPieChart(slices, total, label) {
-  const { cx, cy, r, width } = PIE;
-  const circumference = 2 * Math.PI * r;
-  // 隣り合う色は 2px 空けて切り離す。色だけに頼らず境目が分かるようにする。
-  const gap = slices.length > 1 ? PIE.gap : 0;
-
-  let offset = 0;
-  const arcs = slices.map((slice) => {
-    const span = (slice.games / total) * circumference;
-    const length = Math.max(span - gap, 0.5);   // 極端に細い扇でも線を残す
-    const arc = svgEl("circle", {
-      class: "pie-slice",
-      cx, cy, r,
-      fill: "none",
-      style: `stroke: ${slice.color}`,
-      "stroke-width": width,
-      "stroke-dasharray": `${length} ${circumference - length}`,
-      "stroke-dashoffset": -(offset + gap / 2),
-    }, [svgEl("title", { text: sliceTitle(slice, total) })]);
-    offset += span;
-    return arc;
-  });
-
-  return svgEl("svg", {
-    class: "pie", viewBox: "0 0 200 200", role: "img",
-    "aria-label": `${label}別の試合数の割合`,
-  }, [
-    // circle は 3 時から時計回りに描かれる。12 時始まりにするため全体を回す。
-    svgEl("g", { transform: `rotate(-90 ${cx} ${cy})` }, arcs),
-    svgEl("text", { class: "pie-total", x: cx, y: cy + 4, text: String(total) }),
-    svgEl("text", { class: "pie-total-unit", x: cx, y: cy + 20, text: "戦" }),
-  ]);
-}
-
-/** 円グラフの凡例。色と名前の対応に加えて、読み取れない数字をここで出す。 */
-function renderPieLegend(slices, total, label) {
-  const table = $("pie-legend");
-  table.replaceChildren();
-  table.appendChild(el("thead", {}, [
-    el("tr", {}, [label, "試合", "割合", "勝率"].map((text) => el("th", { text }))),
-  ]));
-
-  const body = el("tbody");
-  for (const slice of slices) {
-    body.appendChild(el("tr", {}, [
-      el("td", {}, [
-        el("span", { class: "swatch", style: `background: ${slice.color}` }),
-        document.createTextNode(slice.key),
-      ]),
-      el("td", { text: String(slice.games) }),
-      el("td", { text: pct(slice.games / total) }),
-      el("td", { text: pct(slice.winrate) }),
-    ]));
-  }
-  table.appendChild(body);
-}
-
-function renderPie(stats) {
-  const opponent = state.pieScope === "opp";
-  const label = opponent ? "相手クラス" : "自分クラス";
-  const slices = pieSlices(opponent ? stats.by_opp_class : stats.by_my_class, stats.classes);
-  const total = slices.reduce((sum, slice) => sum + slice.games, 0);
-
-  if (!total) {
-    $("pie-chart").replaceChildren();
-    $("pie-legend").replaceChildren();
-    return;
-  }
-  $("pie-chart").replaceChildren(renderPieChart(slices, total, label));
-  renderPieLegend(slices, total, label);
-}
-
-/**
- * グレードは Grand Master 帯でしか付かない。ランクが config の grade_rank と
- * 一致しないときは選べなくして値も落とす。無効化された select は FormData に
- * 載らないので、送信される JSON からも自動的に消える。
- */
 function syncGradeField() {
   const select = $("field-grade");
   const { grades, grade_rank: gradeRank } = state.config;
@@ -319,75 +107,9 @@ function autoSetGradeFromCr() {
   $("grade-hint").textContent = "CR から自動";
 }
 
-function renderStats(stats) {
-  const hasData = stats.overall.games > 0;
-  $("stats-empty").hidden = hasData;
-  $("stats-body").hidden = !hasData;
-
-  const overall = stats.overall;
-  $("topbar-summary").replaceChildren(
-    el("strong", { text: overall.games ? pct(overall.winrate) : "—" }),
-    document.createTextNode(` / ${overall.games} 戦`),
-  );
-  if (!hasData) return;
-
-  renderHeadline(stats);
-  renderPie(stats);
-  renderMatrix(stats);
-  renderBreakdown("by-deck", stats.by_my_deck, "デッキ");
-  renderBreakdown("by-opp", stats.by_opp_class, "相手クラス");
-
-  // グレード別はグラマス帯の戦績が 1 件でもあるときだけ出す。
-  const grades = stats.by_grade || [];
-  $("grade-section").hidden = grades.length === 0;
-  if (grades.length) renderBreakdown("by-grade", grades, "グレード");
-
-  renderCr(stats.cr);
-}
-
-/** CR の推移要約。CR を記録した戦績が無ければ行ごと隠す。 */
-function renderCr(cr) {
-  $("cr-row").hidden = !cr;
-  if (!cr) return;
-  const sign = cr.delta > 0 ? "+" : "";
-  $("cr-row").replaceChildren(
-    el("div", { class: "stat" }, [
-      el("div", { class: "label", text: "現在 CR" }),
-      el("div", { class: "value", text: String(cr.latest) }),
-      el("div", { class: "detail" }, [
-        el("span", {
-          class: cr.delta > 0 ? "delta-up" : cr.delta < 0 ? "delta-down" : "",
-          text: `${sign}${cr.delta}`,
-        }),
-        document.createTextNode(` / ${cr.games} 戦`),
-      ]),
-    ]),
-    el("div", { class: "stat" }, [
-      el("div", { class: "label", text: "最高 CR" }),
-      el("div", { class: "value", text: String(cr.max) }),
-      el("div", { class: "detail", text: `最低 ${cr.min}` }),
-    ]),
-    el("div", { class: "stat" }, [
-      el("div", { class: "label", text: "期間の始点" }),
-      el("div", { class: "value", text: String(cr.first) }),
-      el("div", { class: "detail", text: "絞り込み範囲の最初の記録" }),
-    ]),
-  );
-}
-
 // ---------------------------------------------------------------------------
 // 履歴の描画
 // ---------------------------------------------------------------------------
-
-/**
- * 履歴の「大会」欄。ランクマッチの記録では空になる。
- * 大会名を付けずに記録した大会戦は、区別が付くよう「大会」とだけ出す。
- */
-function describeEvent(record) {
-  if ((record.mode || "ladder") !== "tournament") return "";
-  const round = record.round ? `R${record.round}` : "";
-  return [record.event || "大会", round].filter(Boolean).join(" ");
-}
 
 function renderLog(records) {
   const table = $("log");
@@ -395,13 +117,13 @@ function renderLog(records) {
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "大会", "自分", "相手", "先後", "結果", "ランク", "グレード", "CR", "メモ", ""].map(
+    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "CR", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
   if (!records.length) {
     table.appendChild(el("tbody", {}, [
-      el("tr", {}, [el("td", { colspan: "11", class: "empty-cell", text: "まだ戦績がありません。" })]),
+      el("tr", {}, [el("td", { colspan: "10", class: "empty-cell", text: "まだ戦績がありません。" })]),
     ]));
     return;
   }
@@ -414,7 +136,6 @@ function renderLog(records) {
   for (const record of shown) {
     body.appendChild(el("tr", { class: record.id === state.editingId ? "editing" : "" }, [
       el("td", { text: record.played_at }),
-      el("td", { class: "event", text: describeEvent(record) }),
       el("td", { text: side(record.my_class, record.my_deck) }),
       el("td", {}, opponentCell(record)),
       el("td", { text: TURN_LABEL[record.turn] || "" }),
@@ -463,12 +184,6 @@ function showFormError(message, fields = {}) {
 function startEdit(record) {
   state.editingId = record.id;
   $("field-id").value = record.id;
-  // 大会の項目はこの画面では編集しないが、送り返さないと更新のたびに消えてしまう。
-  // hidden で持って、そのまま PUT に載せる。
-  for (const name of HIDDEN_TOURNAMENT_FIELDS) {
-    const value = record[name];
-    $(`field-${name}`).value = value === null || value === undefined ? "" : value;
-  }
   $("field-played_at").value = record.played_at || "";
   $("field-rank").value = record.rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
@@ -495,8 +210,6 @@ function startEdit(record) {
 function cancelEdit() {
   state.editingId = null;
   $("field-id").value = "";
-  // 編集していた大会の記録を引きずらない。以後の記録はランクマッチとして入る。
-  for (const name of HIDDEN_TOURNAMENT_FIELDS) $(`field-${name}`).value = "";
   $("submit-button").textContent = "記録する";
   $("cancel-edit").hidden = true;
   showFormError("");
@@ -569,66 +282,45 @@ function collectDecks(records) {
   return { all: [...all].sort(), mine: [...mine].sort() };
 }
 
-/** 記録済みの大会名。新しい大会が上に来るよう、出てきた順の逆で並べる。 */
-function collectEvents(records) {
-  const events = [];
-  for (const record of records) {
-    if (record.event && !events.includes(record.event)) events.push(record.event);
-  }
-  return events.reverse();
-}
-
 function describeFilters() {
   const parts = [];
   if ($("filter-since").value) parts.push(`${$("filter-since").value} 以降`);
   if ($("filter-until").value) parts.push(`${$("filter-until").value} 以前`);
-  if ($("filter-mode").value) parts.push(MODE_LABEL[$("filter-mode").value]);
-  if ($("filter-event").value) parts.push($("filter-event").value);
   if ($("filter-my_class").value) parts.push($("filter-my_class").value);
   if ($("filter-my_deck").value) parts.push($("filter-my_deck").value);
   if ($("filter-grade").value) parts.push($("filter-grade").value);
   $("filter-summary").textContent = parts.length ? `適用中: ${parts.join(" / ")}` : "全期間・全クラス";
 }
 
-/** 全戦績から作る選択肢 (デッキ名と大会名)。絞り込み結果ではなく常に全件から作る。 */
+/** ランクマッチの全戦績から作るデッキ名の候補。絞り込み結果ではなく常に全件から作る。 */
 function fillDynamicOptions(records) {
   const decks = collectDecks(records);
   $("deck-list").replaceChildren(...decks.all.map((deck) => el("option", { value: deck })));
   replaceOptions($("filter-my_deck"), decks.mine, { placeholder: "すべて" });
-  replaceOptions($("filter-event"), collectEvents(records), { placeholder: "すべて" });
 }
 
 async function refresh() {
   const query = toQuery(filterValues());
-  // 絞り込み後の履歴と集計は同じ条件で取る。デッキ・大会の候補だけは全件から作る。
+  // 絞り込み後の履歴と集計は同じ条件で取る。デッキの候補だけは
+  // (絞り込みで消えないよう) ランクマッチの全件から作る。
   const [{ records }, stats, all] = await Promise.all([
     api(`/api/records${query}`),
     api(`/api/stats${query}`),
-    api("/api/records"),
+    api("/api/records?mode=ladder"),
   ]);
   state.records = records;
   state.stats = stats;
 
   fillDynamicOptions(all.records);
   describeFilters();
-  renderStats(stats);
+  renderStats(stats, { pieScope: state.pieScope });
   renderLog(records);
-}
 
-/**
- * URL のクエリを絞り込み欄に流し込む。大会の画面から「この大会の集計を見る」で
- * 飛んできたときに、その大会だけを見た状態で開くために使う。
- *
- * デッキ名と大会名の選択肢は戦績から作るので、先に候補を埋めてから値を入れる。
- */
-async function applyUrlFilters() {
-  const params = new URLSearchParams(location.search);
-  if (![...params.keys()].some((key) => Object.values(FILTERS).includes(key))) return;
-  const { records } = await api("/api/records");
-  fillDynamicOptions(records);
-  for (const [id, name] of Object.entries(FILTERS)) {
-    if (params.has(name)) $(id).value = params.get(name);
-  }
+  const overall = stats.overall;
+  $("topbar-summary").replaceChildren(
+    el("strong", { text: overall.games ? pct(overall.winrate) : "—" }),
+    document.createTextNode(` / ${overall.games} 戦`),
+  );
 }
 
 async function init() {
@@ -661,7 +353,7 @@ async function init() {
   for (const input of document.querySelectorAll('input[name="pie_scope"]')) {
     input.addEventListener("change", () => {
       state.pieScope = input.value;
-      if (state.stats) renderPie(state.stats);
+      if (state.stats) renderPie(state.stats, state.pieScope);
     });
   }
 
@@ -673,7 +365,6 @@ async function init() {
     refresh().catch(reportFatal);
   });
 
-  await applyUrlFilters();
   await refresh();
 }
 

@@ -287,16 +287,6 @@ button.link { background: none; border: 0; color: var(--muted); padding: 2px 6px
 button.link:hover { color: var(--text); text-decoration: underline; }
 button:disabled, button:disabled:hover { opacity: .5; cursor: not-allowed; border-color: var(--border); filter: none; }
 
-/* 見た目はボタン、実体はリンク (大会画面から集計へ飛ぶところ)。 */
-.button-link {
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 13px;
-  text-decoration: none;
-}
-.button-link:hover { border-color: var(--accent); color: var(--text); }
 
 .form-error {
   margin: 10px 0 0;
@@ -377,25 +367,24 @@ th:first-child, td:first-child { text-align: left; }
 
 /* ---------- log ---------- */
 
-/* 列: 1日付 2大会 3自分 4相手 5先後 6結果 7ランク 8グレード 9CR 10メモ 11操作
+/* 列: 1日付 2自分 3相手 4先後 5結果 6ランク 7グレード 8CR 9メモ 10操作
    文字列は左寄せ、先後と結果は中央、CR だけ数値なので右寄せ。 */
-.log th:nth-child(-n+4), .log td:nth-child(-n+4),
-.log th:nth-child(n+7), .log td:nth-child(n+7) { text-align: left; }
-.log th:nth-child(5), .log td:nth-child(5),
-.log th:nth-child(6), .log td:nth-child(6) { text-align: center; }
-.log th:nth-child(9), .log td:nth-child(9) { text-align: right; }
-.log .event { color: var(--muted); font-size: 12px; }
+.log th:nth-child(-n+3), .log td:nth-child(-n+3),
+.log th:nth-child(n+6), .log td:nth-child(n+6) { text-align: left; }
+.log th:nth-child(4), .log td:nth-child(4),
+.log th:nth-child(5), .log td:nth-child(5) { text-align: center; }
+.log th:nth-child(8), .log td:nth-child(8) { text-align: right; }
 /* 相手の欄にぶら下げる「相手のもう 1 デッキ」。当たったデッキと同じ大きさで
    並べると取り違えるので、一段小さく薄くする。 */
 .log .sub, .rounds .sub { color: var(--muted); font-size: 11px; }
 
-/* 大会画面のラウンド一覧。列: 1R 2対戦相手 3自分 4相手 5先後 6結果 7メモ 8操作 */
+/* 大会画面のラウンド一覧。
+   列: 1大会 2R 3対戦相手 4自分 5相手 6先後 7結果 8メモ 9操作 */
 .rounds th, .rounds td { text-align: left; }
-.rounds th:first-child, .rounds td:first-child { text-align: right; }
-.rounds th:nth-child(5), .rounds td:nth-child(5),
-.rounds th:nth-child(6), .rounds td:nth-child(6) { text-align: center; }
-/* 「記録がありません」は表全体にかかる行 (colspan)。ラウンド番号ではないので右へ寄せない。 */
-.rounds td.empty-cell { text-align: left; }
+.rounds th:nth-child(2), .rounds td:nth-child(2) { text-align: right; }
+.rounds th:nth-child(6), .rounds td:nth-child(6),
+.rounds th:nth-child(7), .rounds td:nth-child(7) { text-align: center; }
+.rounds .event { color: var(--muted); font-size: 12px; }
 
 .log .win, .rounds .win { color: var(--win); font-weight: 600; }
 .log .loss, .rounds .loss { color: var(--loss); font-weight: 600; }
