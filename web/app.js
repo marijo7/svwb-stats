@@ -85,7 +85,7 @@ function renderLog(records) {
   $("log-count").textContent = records.length ? `(${records.length} 件)` : "";
 
   table.appendChild(el("thead", {}, [
-    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "相手ランク", "相手グレード", "相手 CR", "メモ", ""].map(
+    el("tr", {}, ["日付", "自分", "相手", "先後", "結果", "ランク", "グレード", "CR", "メモ", ""].map(
       (label) => el("th", { text: label }))),
   ]));
 
