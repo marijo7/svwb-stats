@@ -51,7 +51,18 @@
               </label>
             </div>
 
-            <!-- ここから下は相手のこと。ランク・グレード・CR はすべて相手の値。 -->
+            <div class="grid">
+              <label class="field">
+                <span>相手クラス</span>
+                <select name="opp_class" id="field-opp_class" required></select>
+              </label>
+              <label class="field">
+                <span>相手デッキ <em>任意</em></span>
+                <input type="text" name="opp_deck" id="field-opp_deck" list="deck-list" placeholder="例: ミッドロイヤル" maxlength="120">
+              </label>
+            </div>
+
+            <!-- 帯の情報はデッキを選んだあと。ランク・グレード・CR はすべて相手の値。 -->
             <div class="grid">
               <label class="field">
                 <span>相手ランク <em>任意</em></span>
@@ -71,17 +82,6 @@
                 <span>相手 CR <em id="cr-hint">任意</em></span>
                 <input type="number" name="opp_cr" id="field-opp_cr" min="0" max="99999" step="1"
                        inputmode="numeric" placeholder="例: 1520">
-              </label>
-            </div>
-
-            <div class="grid">
-              <label class="field">
-                <span>相手クラス</span>
-                <select name="opp_class" id="field-opp_class" required></select>
-              </label>
-              <label class="field">
-                <span>相手デッキ <em>任意</em></span>
-                <input type="text" name="opp_deck" id="field-opp_deck" list="deck-list" placeholder="例: ミッドロイヤル" maxlength="120">
               </label>
             </div>
 
