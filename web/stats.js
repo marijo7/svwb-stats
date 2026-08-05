@@ -226,12 +226,12 @@ function renderStats(stats, { pieScope = "my", headline = "全体" } = {}) {
   if (has("pie-chart")) renderPie(stats, pieScope);
   if (has("matrix")) renderMatrix(stats);
   if (has("by-deck")) renderBreakdown("by-deck", stats.by_my_deck, "デッキ");
-  if (has("by-opp")) renderBreakdown("by-opp", stats.by_opp_class, "相手クラス");
+  if (has("by-opp")) renderBreakdown("by-opp", stats.by_opp_class, "クラス");
 
   // 相手グレードはランクマッチ帯にしか無い。大会の画面にはセクションごと無い。
   if (has("grade-section")) {
     const grades = stats.by_opp_grade || [];
     $("grade-section").hidden = grades.length === 0;
-    if (grades.length) renderBreakdown("by-grade", grades, "相手グレード");
+    if (grades.length) renderBreakdown("by-grade", grades, "グレード");
   }
 }
