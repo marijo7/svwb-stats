@@ -173,12 +173,15 @@ function renderPieChart(slices, total, label) {
   ]);
 }
 
-/** 円グラフの凡例。色と名前の対応に加えて、読み取れない数字をここで出す。 */
-function renderPieLegend(slices, total, label) {
+/**
+ * 円グラフの凡例。色と名前の対応に加えて、読み取れない数字をここで出す。
+ * 自分 / 相手のどちらを見ているかは真上のトグルが示すので、列名では繰り返さない。
+ */
+function renderPieLegend(slices, total) {
   const table = $("pie-legend");
   table.replaceChildren();
   table.appendChild(el("thead", {}, [
-    el("tr", {}, [label, "試合", "割合", "勝率"].map((text) => el("th", { text }))),
+    el("tr", {}, ["クラス", "試合", "割合", "勝率"].map((text) => el("th", { text }))),
   ]));
 
   const body = el("tbody");
@@ -209,7 +212,7 @@ function renderPie(stats, scope) {
     return;
   }
   $("pie-chart").replaceChildren(renderPieChart(slices, total, label));
-  renderPieLegend(slices, total, label);
+  renderPieLegend(slices, total);
 }
 
 /**
