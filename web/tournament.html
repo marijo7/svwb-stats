@@ -23,9 +23,15 @@
     <div class="workspace">
       <div class="workspace-col">
 
-        <!-- ---------------- 大会設定 ---------------- -->
-        <section class="card" aria-labelledby="setup-title">
-          <h2 id="setup-title">大会設定</h2>
+        <!-- ---------------- 大会設定 ----------------
+             最初に 1 度入れたら大会が終わるまで変えないので、畳めるようにしてある。
+             畳んだままでも何を記録しているか分かるよう、見出しの横に要約を出す。 -->
+        <details class="card" id="setup-panel" open>
+          <summary>
+            <h2 id="setup-title">大会設定</h2>
+            <span class="setup-digest" id="setup-digest"></span>
+          </summary>
+
           <div class="grid">
             <label class="field">
               <span>大会名</span>
@@ -67,7 +73,7 @@
 
           <p class="hint">持ち込んだ 2 デッキを先に登録しておくと、各ラウンドは「どちらを使ったか」を
             1 タップ選ぶだけになります。設定はこの端末のブラウザに残ります。</p>
-        </section>
+        </details>
 
         <!-- ---------------- ラウンドの記録 ---------------- -->
         <section class="card entry" aria-labelledby="round-title">

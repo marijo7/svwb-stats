@@ -32,7 +32,10 @@ const state = {
 
 const emptyDeck = () => ({ my_class: "", my_deck: "" });
 
-/** 入力欄から今の設定を読む。 */
+/** デッキが 1 つでも登録された、記録を始められる設定か。 */
+const isSetUp = (setup) => Boolean(setup.event) && setup.decks.some((deck) => deck.my_class);
+
+/** 入力欄から今の設定を読む。open は畳んだかどうかで、記録の内容とは関係ない。 */
 function readSetup() {
   return {
     event: $("setup-event").value.trim(),
@@ -41,6 +44,7 @@ function readSetup() {
       my_class: $(`setup-deck${i + 1}_class`).value,
       my_deck: $(`setup-deck${i + 1}_deck`).value.trim(),
     })),
+    open: $("setup-panel").open,
   };
 }
 
@@ -52,6 +56,7 @@ function writeSetup(setup) {
     $(`setup-deck${i + 1}_class`).value = deck.my_class || "";
     $(`setup-deck${i + 1}_deck`).value = deck.my_deck || "";
   });
+  $("setup-panel").open = setup.open;
 }
 
 /** 保存した設定を読む。壊れていたら黙って初期値に戻す (入力し直せば済む)。 */
@@ -63,7 +68,7 @@ function loadSetup() {
     saved = null;
   }
   const decks = Array.isArray(saved && saved.decks) ? saved.decks : [];
-  return {
+  const setup = {
     event: (saved && typeof saved.event === "string") ? saved.event : "",
     played_at: (saved && typeof saved.played_at === "string") ? saved.played_at : today(),
     decks: DECK_MARKS.map((_, i) => ({
@@ -71,6 +76,10 @@ function loadSetup() {
       my_deck: (decks[i] && decks[i].my_deck) || "",
     })),
   };
+  // 畳んだかどうかは覚えておく。まだ覚えていないときは、記録を始められる設定が
+  // 残っていれば畳んでおく (大会の途中で開き直したときにラウンド入力から始まる)。
+  setup.open = (saved && typeof saved.open === "boolean") ? saved.open : !isSetUp(setup);
+  return setup;
 }
 
 function saveSetup(setup) {
@@ -119,11 +128,25 @@ function renderDeckChoices() {
   }));
 }
 
+/**
+ * 畳んだときに見出しの横へ出す要約。何を記録している状態なのかが
+ * 開かなくても分かるようにする。日付を含めるのは、前日の設定が残ったまま
+ * 記録を続けてしまうのを防ぐため。
+ */
+function setupDigest() {
+  const { event, played_at: playedAt, decks } = state.setup;
+  if (!event) return "大会名が未入力";
+  const registered = decks.filter((deck) => deck.my_class)
+    .map((deck) => side(deck.my_class, deck.my_deck));
+  return `${event} · ${playedAt} · ${registered.length ? registered.join(" ＋ ") : "デッキ未登録"}`;
+}
+
 /** 設定を読み直して保存し、画面に反映する。 */
 function syncSetup() {
   state.setup = readSetup();
   saveSetup(state.setup);
   renderDeckChoices();
+  $("setup-digest").textContent = setupDigest();
   const named = Boolean(state.setup.event);
   $("submit-button").disabled = !named;
   $("round-hint").textContent = named
@@ -405,6 +428,8 @@ async function init() {
   for (const id of ["setup-deck1_class", "setup-deck1_deck", "setup-deck2_class", "setup-deck2_deck"]) {
     $(id).addEventListener("input", syncSetup);
   }
+  // 畳んだ / 開いたを覚える。次に開いたときも同じ状態で始まる。
+  $("setup-panel").addEventListener("toggle", syncSetup);
   // 大会名と日付を変えると見ている大会そのものが変わるので、取り直す。
   for (const id of ["setup-event", "setup-played_at"]) {
     $(id).addEventListener("change", () => {

@@ -144,6 +144,32 @@ main > *, .workspace > *, .workspace-col > * { min-width: 0; }
   container-type: inline-size;
 }
 .card h2 { margin: 0 0 14px; font-size: 15px; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+
+/* 畳めるカード (大会設定)。見出しの行がそのまま開閉のボタンになる。
+   既定の三角は環境ごとに位置が違うので、自前の ▸ に差し替える。 */
+.card > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 6px;
+}
+.card > summary::-webkit-details-marker { display: none; }
+.card > summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--muted);
+  transition: transform .12s;
+}
+.card[open] > summary::before { transform: rotate(90deg); }
+/* 見出しは縮めない。要約が長くても「大会設定」が折り返さないようにする。 */
+.card > summary h2 { margin: 0; flex: none; white-space: nowrap; }
+.card > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.card[open] > summary { margin-bottom: 14px; }
+/* 畳んでいる間だけ意味を持つ要約。開いている間は下の入力欄と同じ内容なので隠す。 */
+.setup-digest { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.card[open] .setup-digest { display: none; }
 .card h3 { margin: 22px 0 8px; font-size: 14px; }
 .caption { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
 .count { color: var(--muted); font-weight: normal; text-transform: none; letter-spacing: 0; }
@@ -368,6 +394,8 @@ th:first-child, td:first-child { text-align: left; }
 .rounds th:first-child, .rounds td:first-child { text-align: right; }
 .rounds th:nth-child(5), .rounds td:nth-child(5),
 .rounds th:nth-child(6), .rounds td:nth-child(6) { text-align: center; }
+/* 「記録がありません」は表全体にかかる行 (colspan)。ラウンド番号ではないので右へ寄せない。 */
+.rounds td.empty-cell { text-align: left; }
 
 .log .win, .rounds .win { color: var(--win); font-weight: 600; }
 .log .loss, .rounds .loss { color: var(--loss); font-weight: 600; }
