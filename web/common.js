@@ -122,3 +122,17 @@ function renderBreakdown(tableId, rows, keyLabel) {
 
 /** 「クラス / デッキ名」。デッキ名が無ければクラスだけ。 */
 const side = (cls, deck) => (deck ? `${cls} / ${deck}` : cls);
+
+/**
+ * 表の「相手」欄。2 デッキ制で相手のもう 1 デッキが分かっているときは
+ * 「＋…」で添える。当たったデッキと持ち込みを取り違えないよう、列は分けずに
+ * 小さい字でぶら下げる。
+ */
+function opponentCell(record) {
+  const nodes = [document.createTextNode(side(record.opp_class, record.opp_deck))];
+  if (record.opp_class2 || record.opp_deck2) {
+    const other = side(record.opp_class2 || "クラス不明", record.opp_deck2);
+    nodes.push(el("span", { class: "sub", title: `相手のもう 1 デッキ: ${other}`, text: ` ＋${other}` }));
+  }
+  return nodes;
+}

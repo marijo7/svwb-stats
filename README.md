@@ -99,6 +99,8 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `event` | | 大会名。`mode` が `tournament` のときだけ入力できる |
 | `round` | | ラウンド番号 (1〜99)。`mode` が `tournament` のときだけ入力できる。未入力は `null` |
 | `opponent` | | 対戦相手のプレイヤー名。`mode` が `tournament` のときだけ入力できる |
+| `opp_class2` | | 相手が持ち込んだ**もう 1 デッキ**のクラス。`mode` が `tournament` のときだけ入力できる |
+| `opp_deck2` | | そのデッキ名。`mode` が `tournament` のときだけ入力できる |
 
 連戦を記録しやすいよう、送信後も **自分クラス・自分デッキ・ランク・グレード・日付は残る**。相手クラスにフォーカスが移るので、次の試合は 3 クリックで記録できる。
 
@@ -114,6 +116,14 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 使用デッキは登録した 2 つがそのままボタンになるので、毎ラウンド選ぶのはどちらを使ったかだけ。ラウンド番号は記録するたびに 1 つ進み、大会名・日付・使用デッキは次のラウンドに引き継がれる。相手クラスにフォーカスが移る。
 
 **大会設定はこの端末のブラウザ (localStorage) に残る。** 画面を閉じても同じ大会の続きから入力できる。サーバーには置いていないので、PC とスマホで別々の大会を同時に記録することもできる。
+
+### 相手のもう 1 デッキ
+
+相手も 2 デッキ持ち込んでいるので、**当たらなかったほうのデッキ** (`opp_class2` / `opp_deck2`) も残せる。デッキリスト公開や前のラウンドで分かったときだけ入れればよく、未入力でかまわない。当たったクラス (`opp_class`) と違って必須ではない。
+
+履歴とラウンド一覧では、相手の欄に `ネメシス / AFネメシス ＋ドラゴン / 財宝ドラゴン` のように小さくぶら下がる。当たったデッキと持ち込みを取り違えないよう、列は分けていない。
+
+**この項目は今のところ記録するだけで、集計には出していない。** 当たっていないデッキの勝率は意味を持たないため、既存の内訳 (相手クラス別など) には混ぜていない。「大会の持ち込み分布」として集計したくなったら別の内訳として足す。
 
 右側 (スマホでは下) に出る「この大会の成績」は、その大会だけに絞った勝敗・先攻/後攻・使用デッキ別・相手クラス別。**2 デッキのどちらが勝っているかがその場で分かる。** 「この大会の集計を詳しく見る」を押すと、ランク戦の画面をその大会で絞り込んだ状態で開く (対面マトリクスや円グラフも同じものが使える)。
 
@@ -197,13 +207,13 @@ CR を入力するとグレードが自動で選ばれる。対応は `config.js
 `data/records.jsonl` は 1 行 1 試合の JSON。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "grade": "EPIC", "cr": 1530, "note": "", "mode": "ladder", "event": "", "opponent": "", "round": null, "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ネメシス", "my_deck": "AFネメシス", "opp_class": "ロイヤル", "opp_deck": "ミッドロイヤル", "turn": "first", "result": "win", "rank": "Grand Master", "grade": "EPIC", "cr": 1530, "note": "", "mode": "ladder", "event": "", "opponent": "", "opp_class2": "", "opp_deck2": "", "round": null, "id": "…", "created_at": "…"}
 ```
 
 大会の戦績も同じファイル・同じ形で、`mode` と大会の項目が入るだけ。
 
 ```json
-{"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "grade": "", "cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "round": 3, "id": "…", "created_at": "…"}
+{"played_at": "2026-08-03", "my_class": "ロイヤル", "my_deck": "連携ロイヤル", "opp_class": "エルフ", "opp_deck": "", "turn": "second", "result": "win", "rank": "", "grade": "", "cr": null, "note": "", "mode": "tournament", "event": "第 1 回 WB 杯", "opponent": "たろう", "opp_class2": "ドラゴン", "opp_deck2": "財宝ドラゴン", "round": 3, "id": "…", "created_at": "…"}
 ```
 
 `mode` を持たない行 (大会機能より前に記録したもの) はランク戦として扱われる。`--mode ladder` や絞り込みの「ランク戦」にもそのまま含まれるので、古いデータを書き換える必要はない。

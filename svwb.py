@@ -210,13 +210,22 @@ def validate_record(payload: dict, config: dict) -> dict:
     record["mode"] = mode
     tournament = mode == "tournament"
 
-    # 大会名・対戦相手・ラウンドは大会モード専用。ランク戦の記録に紛れ込むと
-    # 「この大会だけの集計」が信用できなくなるので、ここで弾く。
-    for field in ("event", "opponent"):
+    # 大会名・対戦相手・ラウンド・相手のもう 1 デッキは大会モード専用。ランク戦の
+    # 記録に紛れ込むと「この大会だけの集計」が信用できなくなるので、ここで弾く。
+    for field in ("event", "opponent", "opp_deck2"):
         value = _text(payload.get(field), field, MAX_TEXT, errors)
         if value and not tournament:
             errors[field] = "大会モードのときだけ記録できます"
         record[field] = value
+
+    # 相手が持ち込んだもう 1 デッキのクラス。BO1 では当たらないことも多いので、
+    # 対戦したクラス (opp_class) と違って未入力を許す。
+    opp_class2 = payload.get("opp_class2") or ""
+    if opp_class2 and opp_class2 not in config["classes"]:
+        errors["opp_class2"] = "クラスの選択肢にありません"
+    elif opp_class2 and not tournament:
+        errors["opp_class2"] = "大会モードのときだけ記録できます"
+    record["opp_class2"] = opp_class2 if isinstance(opp_class2, str) else ""
 
     record["round"] = None
     round_raw = payload.get("round")

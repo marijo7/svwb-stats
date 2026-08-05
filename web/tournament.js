@@ -182,7 +182,7 @@ function renderRounds(records) {
       el("td", { text: record.round ? `R${record.round}` : "" }),
       el("td", { text: record.opponent || "" }),
       el("td", { text: side(record.my_class, record.my_deck) }),
-      el("td", { text: side(record.opp_class, record.opp_deck) }),
+      el("td", {}, opponentCell(record)),
       el("td", { text: TURN_LABEL[record.turn] || "" }),
       el("td", { class: record.result, text: RESULT_LABEL[record.result] || "" }),
       el("td", { class: "note", title: record.note || "", text: record.note || "" }),
@@ -204,7 +204,7 @@ function showFormError(message, fields = {}) {
   const messages = Object.values(fields);
   box.textContent = messages.length ? messages.join(" / ") : (message || "");
   box.hidden = !box.textContent;
-  for (const name of ["round", "opponent", "opp_class", "opp_deck", "note"]) {
+  for (const name of ["round", "opponent", "opp_class", "opp_deck", "opp_class2", "opp_deck2", "note"]) {
     $(`field-${name}`).classList.toggle("invalid", Boolean(fields[name]));
   }
 }
@@ -236,6 +236,8 @@ function formPayload() {
     my_deck: deck.my_deck,
     opp_class: $("field-opp_class").value,
     opp_deck: $("field-opp_deck").value.trim(),
+    opp_class2: $("field-opp_class2").value,
+    opp_deck2: $("field-opp_deck2").value.trim(),
     turn: checkedValue("turn"),
     result: checkedValue("result"),
     note: $("field-note").value.trim(),
@@ -249,6 +251,8 @@ function startEdit(record) {
   $("field-opponent").value = record.opponent || "";
   $("field-opp_class").value = record.opp_class || "";
   $("field-opp_deck").value = record.opp_deck || "";
+  $("field-opp_class2").value = record.opp_class2 || "";
+  $("field-opp_deck2").value = record.opp_deck2 || "";
   $("field-note").value = record.note || "";
   for (const input of $("round-form").querySelectorAll('input[name="turn"], input[name="result"]')) {
     input.checked = input.value === record.turn || input.value === record.result;
@@ -287,6 +291,8 @@ function resetForNextRound() {
   $("field-opponent").value = "";
   $("field-opp_class").value = "";
   $("field-opp_deck").value = "";
+  $("field-opp_class2").value = "";
+  $("field-opp_deck2").value = "";
   $("field-note").value = "";
   for (const input of $("round-form").querySelectorAll('input[name="turn"], input[name="result"]')) {
     input.checked = false;
@@ -349,6 +355,7 @@ function fillDatalists(records) {
   for (const record of records) {
     if (record.my_deck) decks.add(record.my_deck);
     if (record.opp_deck) decks.add(record.opp_deck);
+    if (record.opp_deck2) decks.add(record.opp_deck2);
     if (record.event && !events.includes(record.event)) events.push(record.event);
   }
   $("deck-list").replaceChildren(...[...decks].sort().map((deck) => el("option", { value: deck })));
@@ -389,6 +396,7 @@ async function init() {
     replaceOptions($(id), state.config.classes, { placeholder: "未登録" });
   }
   replaceOptions($("field-opp_class"), state.config.classes, { placeholder: "選択" });
+  replaceOptions($("field-opp_class2"), state.config.classes, { placeholder: "不明" });
 
   writeSetup(loadSetup());
   syncSetup();

@@ -105,6 +105,19 @@
             </div>
 
             <div class="grid">
+              <label class="field">
+                <span>もう 1 デッキ クラス <em>任意</em></span>
+                <select id="field-opp_class2"></select>
+              </label>
+              <label class="field">
+                <span>もう 1 デッキ 名前 <em>任意</em></span>
+                <input type="text" id="field-opp_deck2" list="deck-list" maxlength="120"
+                       placeholder="例: 財宝ドラゴン">
+              </label>
+            </div>
+            <p class="caption">相手が持ち込んだもう一方のデッキ。デッキリスト公開や前のラウンドで分かったときだけで構いません。</p>
+
+            <div class="grid">
               <fieldset class="field toggle-group">
                 <legend>先攻 / 後攻</legend>
                 <div class="toggles" id="field-turn">
@@ -124,7 +137,7 @@
 
             <label class="field">
               <span>メモ <em>任意</em></span>
-              <textarea id="field-note" rows="2" maxlength="1000" placeholder="相手のもう 1 デッキ、負け筋、など"></textarea>
+              <textarea id="field-note" rows="2" maxlength="1000" placeholder="キープ内容、負け筋、など"></textarea>
             </label>
 
             <p class="form-error" id="form-error" role="alert" hidden></p>

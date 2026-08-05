@@ -232,7 +232,27 @@ class TestTournamentFields(unittest.TestCase):
         self.assertEqual(record["mode"], "ladder")
         self.assertEqual(record["event"], "")
         self.assertEqual(record["opponent"], "")
+        self.assertEqual(record["opp_class2"], "")
+        self.assertEqual(record["opp_deck2"], "")
         self.assertIsNone(record["round"])
+
+    def test_accepts_the_opponents_other_deck(self):
+        # 2 デッキ制なので、当たらなかったほうのデッキも分かれば残せる。
+        record = svwb.validate_record(make_record(
+            mode="tournament", opp_class2="ドラゴン", opp_deck2="財宝ドラゴン"), CONFIG)
+        self.assertEqual(record["opp_class2"], "ドラゴン")
+        self.assertEqual(record["opp_deck2"], "財宝ドラゴン")
+
+    def test_the_other_deck_is_optional(self):
+        # BO1 では相手の持ち込みが分からないことも多い。opp_class と違い空を許す。
+        record = svwb.validate_record(make_record(mode="tournament"), CONFIG)
+        self.assertEqual(record["opp_class2"], "")
+
+    def test_rejects_unknown_class_for_the_other_deck(self):
+        with self.assertRaises(svwb.ValidationError) as ctx:
+            svwb.validate_record(
+                make_record(mode="tournament", opp_class2="ネクロマンサー"), CONFIG)
+        self.assertIn("opp_class2", ctx.exception.errors)
 
     def test_accepts_a_tournament_record(self):
         record = svwb.validate_record(make_record(
@@ -253,7 +273,8 @@ class TestTournamentFields(unittest.TestCase):
 
     def test_rejects_tournament_fields_on_ladder_records(self):
         # ランク戦の記録に大会名が紛れると「この大会だけの集計」が信用できなくなる。
-        for field, value in (("event", "杯"), ("opponent", "たろう"), ("round", 1)):
+        for field, value in (("event", "杯"), ("opponent", "たろう"), ("round", 1),
+                             ("opp_class2", "ドラゴン"), ("opp_deck2", "財宝ドラゴン")):
             with self.subTest(field=field), self.assertRaises(svwb.ValidationError) as ctx:
                 svwb.validate_record(make_record(**{field: value}), CONFIG)
             self.assertIn(field, ctx.exception.errors)

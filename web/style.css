@@ -359,6 +359,9 @@ th:first-child, td:first-child { text-align: left; }
 .log th:nth-child(6), .log td:nth-child(6) { text-align: center; }
 .log th:nth-child(9), .log td:nth-child(9) { text-align: right; }
 .log .event { color: var(--muted); font-size: 12px; }
+/* 相手の欄にぶら下げる「相手のもう 1 デッキ」。当たったデッキと同じ大きさで
+   並べると取り違えるので、一段小さく薄くする。 */
+.log .sub, .rounds .sub { color: var(--muted); font-size: 11px; }
 
 /* 大会画面のラウンド一覧。列: 1R 2対戦相手 3自分 4相手 5先後 6結果 7メモ 8操作 */
 .rounds th, .rounds td { text-align: left; }

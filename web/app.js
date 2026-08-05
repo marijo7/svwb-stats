@@ -30,6 +30,12 @@ const FILTER_IDS = Object.keys(FILTERS);
 /** モードの表示名。値は API / 保存されるデータと同じ。 */
 const MODE_LABEL = { ladder: "ランク戦", tournament: "大会" };
 
+/**
+ * 大会の画面 (tournament.html) でしか入力しない項目。この画面では編集しないが、
+ * 編集時にそのまま送り返さないと消えてしまうので hidden で持ち回る。
+ */
+const HIDDEN_TOURNAMENT_FIELDS = ["mode", "event", "round", "opponent", "opp_class2", "opp_deck2"];
+
 /** 履歴の既定表示件数。 */
 const LOG_PAGE_SIZE = 30;
 
@@ -410,7 +416,7 @@ function renderLog(records) {
       el("td", { text: record.played_at }),
       el("td", { class: "event", text: describeEvent(record) }),
       el("td", { text: side(record.my_class, record.my_deck) }),
-      el("td", { text: side(record.opp_class, record.opp_deck) }),
+      el("td", {}, opponentCell(record)),
       el("td", { text: TURN_LABEL[record.turn] || "" }),
       el("td", { class: record.result, text: RESULT_LABEL[record.result] || "" }),
       el("td", { text: record.rank || "" }),
@@ -459,10 +465,10 @@ function startEdit(record) {
   $("field-id").value = record.id;
   // 大会の項目はこの画面では編集しないが、送り返さないと更新のたびに消えてしまう。
   // hidden で持って、そのまま PUT に載せる。
-  $("field-mode").value = record.mode || "";
-  $("field-event").value = record.event || "";
-  $("field-round").value = record.round === null || record.round === undefined ? "" : record.round;
-  $("field-opponent").value = record.opponent || "";
+  for (const name of HIDDEN_TOURNAMENT_FIELDS) {
+    const value = record[name];
+    $(`field-${name}`).value = value === null || value === undefined ? "" : value;
+  }
   $("field-played_at").value = record.played_at || "";
   $("field-rank").value = record.rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
@@ -490,7 +496,7 @@ function cancelEdit() {
   state.editingId = null;
   $("field-id").value = "";
   // 編集していた大会の記録を引きずらない。以後の記録はランク戦として入る。
-  for (const name of ["mode", "event", "round", "opponent"]) $(`field-${name}`).value = "";
+  for (const name of HIDDEN_TOURNAMENT_FIELDS) $(`field-${name}`).value = "";
   $("submit-button").textContent = "記録する";
   $("cancel-edit").hidden = true;
   showFormError("");
@@ -558,6 +564,7 @@ function collectDecks(records) {
   for (const record of records) {
     if (record.my_deck) { all.add(record.my_deck); mine.add(record.my_deck); }
     if (record.opp_deck) all.add(record.opp_deck);
+    if (record.opp_deck2) all.add(record.opp_deck2);
   }
   return { all: [...all].sort(), mine: [...mine].sort() };
 }
