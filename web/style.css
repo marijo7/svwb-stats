@@ -199,6 +199,18 @@ main > *, .workspace > *, .workspace-col > * { min-width: 0; }
   .grid, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
 }
 
+/* 大会設定のデッキ枠。クラスとデッキ名は 1 デッキ分の組なので、枠で囲って
+   ① と ② のどちらの話をしているのかを目で追えるようにする。 */
+.deck-slot {
+  margin: 0 0 12px;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+}
+.deck-slot legend { padding: 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.deck-slot .grid { margin-bottom: 0; }
+
 /* グレードと CR はグラマス帯でしか付かない。ランクが一致しないときは触れなくする。 */
 .field select:disabled, .field input:disabled { opacity: .5; cursor: not-allowed; }
 

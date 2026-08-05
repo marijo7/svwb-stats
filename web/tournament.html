@@ -45,29 +45,36 @@
           </div>
           <datalist id="event-list"></datalist>
 
-          <div class="grid">
-            <label class="field">
-              <span>デッキ① クラス</span>
-              <select id="setup-deck1_class"></select>
-            </label>
-            <label class="field">
-              <span>デッキ① 名前 <em>任意</em></span>
-              <input type="text" id="setup-deck1_deck" list="deck-list" maxlength="120"
-                     placeholder="例: 連携ロイヤル">
-            </label>
-          </div>
+          <!-- クラスとデッキ名は 1 デッキ分の組。枠で囲って ① と ② の対応を目で追えるようにする。 -->
+          <fieldset class="deck-slot">
+            <legend>デッキ①</legend>
+            <div class="grid">
+              <label class="field">
+                <span>クラス</span>
+                <select id="setup-deck1_class"></select>
+              </label>
+              <label class="field">
+                <span>デッキ名 <em>任意</em></span>
+                <input type="text" id="setup-deck1_deck" list="deck-list" maxlength="120"
+                       placeholder="例: 連携ロイヤル">
+              </label>
+            </div>
+          </fieldset>
 
-          <div class="grid">
-            <label class="field">
-              <span>デッキ② クラス</span>
-              <select id="setup-deck2_class"></select>
-            </label>
-            <label class="field">
-              <span>デッキ② 名前 <em>任意</em></span>
-              <input type="text" id="setup-deck2_deck" list="deck-list" maxlength="120"
-                     placeholder="例: 進化エルフ">
-            </label>
-          </div>
+          <fieldset class="deck-slot">
+            <legend>デッキ②</legend>
+            <div class="grid">
+              <label class="field">
+                <span>クラス</span>
+                <select id="setup-deck2_class"></select>
+              </label>
+              <label class="field">
+                <span>デッキ名 <em>任意</em></span>
+                <input type="text" id="setup-deck2_deck" list="deck-list" maxlength="120"
+                       placeholder="例: 進化エルフ">
+              </label>
+            </div>
+          </fieldset>
 
           <datalist id="deck-list"></datalist>
 
@@ -121,7 +128,6 @@
                        placeholder="例: 財宝ドラゴン">
               </label>
             </div>
-            <p class="caption">相手が持ち込んだもう一方のデッキ。デッキリスト公開や前のラウンドで分かったときだけで構いません。</p>
 
             <div class="grid">
               <fieldset class="field toggle-group">
