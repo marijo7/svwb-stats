@@ -264,6 +264,14 @@ python3 svwb.py --data /path/to/records.jsonl serve
 python3 -m unittest discover -s tests -v
 ```
 
+中身は検証・保存・集計・API (`test_svwb.py`) と QR (`test_qr.py`)、それにブラウザ側の最低限の検査 (`test_web.py`)。
+
+`test_web.py` が見るのは「開く前に分かる壊れ方」だけ — HTML が読み込む `.js` / `.css` が実在するか、そのページが読み込む JS をつなげて構文が通るか。2 つめは `node` があるときだけ走り、無ければ飛ばす (Python だけの環境でもテストは通る)。
+
+web/ の JS は ES モジュールではなく、`common.js` → `stats.js` → 各画面 の順に読まれて最上位の `const` を共有する。**関数を別ファイルへ移したときに宣言が両方へ残ると、読み込んだ瞬間にページが真っ白になる。** 1 ファイルずつでは見つからないので、ページ単位でつなげてから調べている。
+
+**画面の見た目と動きはテストしていない。** そこは実際に開いて確かめる。
+
 ## 構成
 
 ```

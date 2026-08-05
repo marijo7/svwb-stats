@@ -17,9 +17,12 @@ svwb-stats を Claude Code で触るときの前提。プロジェクトの説�
 ## 確認の仕方
 
 - テストは `python3 -m unittest discover -s tests` (約 0.8 秒)。Python を触ったら走らせる。
-- **テストは frontend をほぼ見ていない。** `web/*.js` と `style.css` のカバレッジは実質
-  ゼロで、`/` が 200 を返すかを見ているだけ。CSS や JS だけの変更でテストが緑でも、
-  何も確認できていない。実際に動かして確かめること。
+- **テストは frontend の見た目と動きを見ていない。** `tests/test_web.py` が見るのは
+  「開く前に分かる壊れ方」だけ (読み込む .js / .css が実在するか、ページ単位で JS を
+  つなげて構文が通るか)。CSS や JS だけの変更でテストが緑でも、動くことの確認には
+  ならない。実際に動かして確かめること。
+- 関数を common.js / stats.js / 各画面の間で移動したら `tests/test_web.py` を走らせる。
+  宣言が両方に残ると読み込んだ瞬間にページが真っ白になるが、これはそこで捕まる。
 - 画面の確認はサーバーを別ポートと**別のデータファイル**で立てて行う
   (`python3 svwb.py --data /tmp/.../scratch.jsonl serve --port 8899`)。
   `data/records.jsonl` は本番の戦績なので触らない。
