@@ -53,7 +53,13 @@ function renderMatrix(stats) {
   const played = classes.filter((mine) =>
     classes.some((opp) => stats.matchup_matrix[mine][opp].games > 0));
 
-  const head = el("tr", {}, [el("th", { text: "自分 \\ 相手" })]);
+  // 左上の角。"自分 \\ 相手" は環境によって円記号に化けるうえ、どちらの軸が
+  // どちらか読み取れない。矢印で向きを示す。
+  const corner = el("th", { class: "axis" }, [
+    el("span", { text: "相手 →" }),
+    el("span", { text: "自分 ↓" }),
+  ]);
+  const head = el("tr", {}, [corner]);
   for (const opp of classes) head.appendChild(el("th", { text: opp }));
   head.appendChild(el("th", { text: "計" }));
   table.appendChild(el("thead", {}, [head]));
