@@ -328,10 +328,6 @@ th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--bor
 th { color: var(--muted); font-weight: 600; font-size: 12px; }
 th:first-child, td:first-child { text-align: left; }
 
-/* 左上の角。行と列がどちらの軸かを 2 行で示す。 */
-.matrix th.axis { line-height: 1.3; }
-.matrix th.axis span { display: block; font-weight: normal; }
-
 .matrix td.cell { border-radius: 4px; }
 .matrix td.empty-cell { color: var(--muted); opacity: .45; }
 .matrix .games { color: var(--muted); font-size: 11px; margin-left: 4px; }

@@ -53,13 +53,9 @@ function renderMatrix(stats) {
   const played = classes.filter((mine) =>
     classes.some((opp) => stats.matchup_matrix[mine][opp].games > 0));
 
-  // 左上の角。"自分 \\ 相手" は環境によって円記号に化けるうえ、どちらの軸が
-  // どちらか読み取れない。矢印で向きを示す。
-  const corner = el("th", { class: "axis" }, [
-    el("span", { text: "相手 →" }),
-    el("span", { text: "自分 ↓" }),
-  ]);
-  const head = el("tr", {}, [corner]);
+  // 左上の角。斜線の下 (左) が行 = 自分、上 (右) が列 = 相手、という表の慣例。
+  // ASCII のバックスラッシュは日本語フォントで円記号に化けるので全角を使う。
+  const head = el("tr", {}, [el("th", { text: "自分＼相手" })]);
   for (const opp of classes) head.appendChild(el("th", { text: opp }));
   head.appendChild(el("th", { text: "計" }));
   table.appendChild(el("thead", {}, [head]));
