@@ -333,6 +333,11 @@ th:first-child, td:first-child { text-align: left; }
 .matrix .games { color: var(--muted); font-size: 11px; margin-left: 4px; }
 .matrix tbody th { text-align: left; }
 
+/* 名前を押すと中の内訳が開く行 (相手クラス別 → そのクラスのデッキ別)。 */
+.breakdown .row-toggle { padding: 0; font: inherit; text-align: left; }
+.breakdown tr.sub-row td { color: var(--muted); font-size: 12px; border-bottom-style: dotted; }
+.breakdown tr.sub-row td:first-child { padding-left: 22px; }
+
 .breakdown .bar {
   display: inline-block;
   height: 6px;

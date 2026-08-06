@@ -548,6 +548,31 @@ class TestStats(unittest.TestCase):
         self.assertEqual(by_key["エルフ"]["games"], 3)
         self.assertEqual(by_key["ドラゴン"]["winrate"], 1.0)
 
+    def test_opponent_class_breakdown_carries_a_deck_split(self):
+        # 画面はこの sub を「相手クラスの行を開くとデッキ別が出る」に使う。
+        records = [
+            make_record(opp_class="ネメシス", opp_deck="疾走AFネメシス", result="win"),
+            make_record(opp_class="ネメシス", opp_deck="疾走AFネメシス", result="loss"),
+            make_record(opp_class="ネメシス", opp_deck="破壊ネメシス", result="win"),
+            make_record(opp_class="エルフ", opp_deck="", result="win"),
+        ]
+        rows = {row["key"]: row for row in
+                svwb.compute_stats(records, self.classes)["by_opp_class"]}
+        nemesis = {sub["key"]: sub for sub in rows["ネメシス"]["sub"]}
+        self.assertEqual(rows["ネメシス"]["games"], 3)
+        self.assertEqual(nemesis["疾走AFネメシス"], {"key": "疾走AFネメシス", "games": 2,
+                                                    "wins": 1, "losses": 1, "winrate": 0.5})
+        self.assertEqual(nemesis["破壊ネメシス"]["winrate"], 1.0)
+        # デッキ名を入れていない戦績は (未設定) にまとまる。
+        self.assertEqual([sub["key"] for sub in rows["エルフ"]["sub"]], ["(未設定)"])
+
+    def test_other_breakdowns_have_no_sub(self):
+        # 入れ子にするのは相手クラス別だけ。他は 1 段のまま。
+        stats = svwb.compute_stats(self.records, self.classes)
+        for key in ("by_my_class", "by_my_deck"):
+            for row in stats[key]:
+                self.assertNotIn("sub", row)
+
     def test_opponent_class_breakdown(self):
         rows = svwb.compute_stats(self.records, self.classes)["by_opp_class"]
         by_key = {row["key"]: row for row in rows}

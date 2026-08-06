@@ -360,12 +360,23 @@ def _tally(records: list[dict]) -> dict:
     return {"games": games, "wins": wins, "losses": games - wins, "winrate": _rate(wins, games)}
 
 
-def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)") -> list[dict]:
-    """key ごとに集計し、試合数の多い順に並べて返す。"""
+def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)",
+               sub_key: str = "") -> list[dict]:
+    """key ごとに集計し、試合数の多い順に並べて返す。
+
+    sub_key を渡すと、各行の中をさらにその項目で割った内訳を "sub" に入れる
+    (相手クラス別の中の相手デッキ別など)。画面はこれを畳んで持っておき、
+    行を開いたときに出す。ここでも数えるのは Python 側だけ。
+    """
     buckets: dict[str, list[dict]] = {}
     for record in records:
         buckets.setdefault(record.get(key) or fallback, []).append(record)
-    rows = [{"key": name, **_tally(rs)} for name, rs in buckets.items()]
+    rows = []
+    for name, rs in buckets.items():
+        row = {"key": name, **_tally(rs)}
+        if sub_key:
+            row["sub"] = _breakdown(rs, sub_key, fallback)
+        rows.append(row)
     rows.sort(key=lambda row: (-row["games"], row["key"]))
     return rows
 
@@ -449,7 +460,8 @@ def compute_stats(records: list[dict], classes: list[str],
                        for turn in TURNS},
         "matchup_matrix": matrix,
         "by_my_class": _breakdown(records, "my_class"),
-        "by_opp_class": _breakdown(records, "opp_class"),
+        # 相手クラスの行はデッキ内訳を抱えている (画面で開くと出る)。
+        "by_opp_class": _breakdown(records, "opp_class", sub_key="opp_deck"),
         "by_my_deck": _breakdown(records, "my_deck"),
         # 相手グレードは Grand Master 帯でしか付かないので、未設定しか無い場合は
         # 行を出さない (グラマス未到達のユーザーに空の表を見せない)。

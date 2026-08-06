@@ -85,9 +85,30 @@ function statCard(label, tally) {
   ]);
 }
 
-/** デッキ別・クラス別などの内訳テーブル。行は /api/stats の by_* をそのまま渡す。 */
+/** 勝率のセル (棒 + 数字)。内訳の表で使い回す。 */
+function winrateCell(row) {
+  return el("td", {}, [
+    el("span", { class: "bar", style: `width: ${Math.round(row.winrate * 48)}px;` }),
+    document.createTextNode(` ${pct(row.winrate)}`),
+  ]);
+}
+
+/** その行を開いて中を見せられるか。内訳が「(未設定)」だけの行は開いても何も分からない。 */
+function hasSub(row) {
+  const sub = row.sub || [];
+  return sub.length > 1 || (sub.length === 1 && sub[0].key !== "(未設定)");
+}
+
+/**
+ * デッキ別・クラス別などの内訳テーブル。行は /api/stats の by_* をそのまま渡す。
+ *
+ * 行が sub (さらに細かい内訳) を持っていれば、名前を押して開けるようにする。
+ * 相手クラス別を開くと、そのクラスのデッキ別が下にぶら下がる。開いた行は
+ * テーブル自身に覚えさせるので、記録して描き直しても開いたままになる。
+ */
 function renderBreakdown(tableId, rows, keyLabel) {
   const table = $(tableId);
+  const expanded = table._expanded || (table._expanded = new Set());
   table.replaceChildren();
   table.appendChild(el("thead", {}, [
     el("tr", {}, [
@@ -107,15 +128,41 @@ function renderBreakdown(tableId, rows, keyLabel) {
 
   const body = el("tbody");
   for (const row of rows) {
+    const open = expanded.has(row.key);
+    let name;
+    if (hasSub(row)) {
+      name = el("button", {
+        class: "link row-toggle",
+        type: "button",
+        "aria-expanded": String(open),
+        text: `${open ? "▾" : "▸"} ${row.key}`,
+        onclick: () => {
+          if (open) expanded.delete(row.key);
+          else expanded.add(row.key);
+          renderBreakdown(tableId, rows, keyLabel);
+        },
+      });
+    } else {
+      name = document.createTextNode(row.key);
+    }
+
     body.appendChild(el("tr", {}, [
-      el("td", { text: row.key }),
+      el("td", {}, [name]),
       el("td", { text: String(row.games) }),
       el("td", { text: `${row.wins}-${row.losses}` }),
-      el("td", {}, [
-        el("span", { class: "bar", style: `width: ${Math.round(row.winrate * 48)}px;` }),
-        document.createTextNode(` ${pct(row.winrate)}`),
-      ]),
+      winrateCell(row),
     ]));
+
+    if (open) {
+      for (const sub of row.sub) {
+        body.appendChild(el("tr", { class: "sub-row" }, [
+          el("td", { text: sub.key }),
+          el("td", { text: String(sub.games) }),
+          el("td", { text: `${sub.wins}-${sub.losses}` }),
+          winrateCell(sub),
+        ]));
+      }
+    }
   }
   table.appendChild(body);
 }
