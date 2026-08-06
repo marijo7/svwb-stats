@@ -64,6 +64,38 @@ class TestConfig(unittest.TestCase):
             svwb.load_config(path)
         self.assertIn("grade_rank", str(ctx.exception))
 
+    def test_shipped_grade_thresholds(self):
+        thresholds = svwb.load_config()["grade_thresholds"]
+        self.assertEqual(thresholds,
+                         {"EPIC未満": 0, "EPIC": 1650, "ULTIMATE": 1750, "LEGEND": 1850})
+        # BEYOND は LEGEND のうちランキング上位のみで CR から決まらない。
+        # 閾値を持たせると自動設定が誤って BEYOND を付けてしまう。
+        self.assertNotIn("BEYOND", thresholds)
+
+    def test_grade_thresholds_must_reference_known_grades(self):
+        bad = {"classes": ["エルフ"], "ranks": ["Master"],
+               "grades": ["EPIC"], "grade_thresholds": {"MYTHIC": 1650}}
+        path = Path(tempfile.mkdtemp()) / "config.json"
+        path.write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+        with self.assertRaises(ValueError) as ctx:
+            svwb.load_config(path)
+        self.assertIn("grade_thresholds", str(ctx.exception))
+
+    def test_grade_thresholds_must_be_integers(self):
+        for bad_value in ("1650", 1650.5, True, None):
+            bad = {"classes": ["エルフ"], "ranks": ["Master"],
+                   "grades": ["EPIC"], "grade_thresholds": {"EPIC": bad_value}}
+            path = Path(tempfile.mkdtemp()) / "config.json"
+            path.write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+            with self.subTest(bad_value=bad_value), self.assertRaises(ValueError):
+                svwb.load_config(path)
+
+    def test_grade_thresholds_default_to_empty(self):
+        minimal = {"classes": ["エルフ"], "ranks": ["Master"]}
+        path = Path(tempfile.mkdtemp()) / "config.json"
+        path.write_text(json.dumps(minimal, ensure_ascii=False), encoding="utf-8")
+        self.assertEqual(svwb.load_config(path)["grade_thresholds"], {})
+
     def test_grades_default_to_empty(self):
         minimal = {"classes": ["エルフ"], "ranks": ["Master"]}
         path = Path(tempfile.mkdtemp()) / "config.json"

@@ -36,7 +36,7 @@ const FILTER_IDS = Object.keys(FILTERS);
 const LOG_PAGE_SIZE = 30;
 
 const state = {
-  config: { classes: [], ranks: [], grades: [], grade_rank: "" },
+  config: { classes: [], ranks: [], grades: [], grade_rank: "", grade_thresholds: {} },
   records: [],
   stats: null,
   editingId: null,
@@ -72,6 +72,44 @@ function syncGradeField() {
   cr.disabled = !atGradeRank;
   if (!atGradeRank) cr.value = "";
   $("cr-hint").textContent = atGradeRank ? "任意" : `${gradeRank} のみ`;
+}
+
+/** config の閾値 (そのグレードに必要な最低 CR) から、この CR のグレードを引く。 */
+function gradeForCr(cr) {
+  let derived = null;
+  let highest = -Infinity;
+  for (const [grade, minCr] of Object.entries(state.config.grade_thresholds || {})) {
+    if (cr >= minCr && minCr > highest) {
+      derived = grade;
+      highest = minCr;
+    }
+  }
+  return derived;
+}
+
+/**
+ * 相手 CR を入れたら相手グレードを自動で合わせる。どちらも同じ相手の値なので、
+ * CR が決まればグレードも決まる。
+ *
+ * 閾値を持たないグレード (BEYOND は LEGEND のうちランキング上位のみで、CR だけ
+ * では決まらない) が選ばれているときは触らない。自動設定が毎回 LEGEND へ
+ * 引き戻してしまうため。CR を消しただけのときもグレードは残す。
+ */
+function autoSetGradeFromCr() {
+  const select = $("field-opp_grade");
+  const thresholds = state.config.grade_thresholds || {};
+  if (select.disabled || !Object.keys(thresholds).length) return;
+  if (select.value && !(select.value in thresholds)) return;
+
+  const raw = $("field-opp_cr").value.trim();
+  if (raw === "") return;
+  const cr = Number(raw);
+  if (!Number.isInteger(cr) || cr < 0) return;
+
+  const derived = gradeForCr(cr);
+  if (!derived) return;
+  select.value = derived;
+  $("grade-hint").textContent = "CR から自動";
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +337,9 @@ async function init() {
   $("field-played_at").value = today();
   $("entry-form").addEventListener("submit", submitForm);
   $("field-opp_rank").addEventListener("change", syncGradeField);
+  $("field-opp_cr").addEventListener("input", autoSetGradeFromCr);
+  // 手で選び直したら「CR から自動」の表示は消す。
+  $("field-opp_grade").addEventListener("change", syncGradeField);
   $("cancel-edit").addEventListener("click", cancelEdit);
   $("log-more").addEventListener("click", () => {
     state.logExpanded = true;

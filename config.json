@@ -19,5 +19,11 @@
     "ULTIMATE",
     "LEGEND",
     "BEYOND"
-  ]
+  ],
+  "grade_thresholds": {
+    "EPIC未満": 0,
+    "EPIC": 1650,
+    "ULTIMATE": 1750,
+    "LEGEND": 1850
+  }
 }
