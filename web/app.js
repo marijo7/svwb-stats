@@ -40,6 +40,7 @@ const state = {
   records: [],
   stats: null,
   editingId: null,
+  beforeEdit: null,    // 編集に入る前のフォーム。抜けたときに戻すため
   logExpanded: false,
   pieScope: "my",      // クラス別円グラフの対象 ("my" = 自分クラス / "opp" = 相手クラス)
 };
@@ -187,6 +188,10 @@ function showFormError(message, fields = {}) {
 }
 
 function startEdit(record) {
+  // 編集に入る前の入力を覚えておく。編集を抜けたときに日付と自分の情報を
+  // ここへ戻す (履歴の古い記録を直したあと、その記録の日付やクラスが
+  // 次の入力に残らないようにする)。編集中にさらに別の行を編集しても上書きしない。
+  if (!state.editingId) state.beforeEdit = formValues();
   state.editingId = record.id;
   $("field-id").value = record.id;
   $("field-played_at").value = record.played_at || "";
@@ -215,10 +220,34 @@ function startEdit(record) {
 function cancelEdit() {
   state.editingId = null;
   $("field-id").value = "";
+  resetAfterEdit();
   $("submit-button").textContent = "記録する";
   $("cancel-edit").hidden = true;
   showFormError("");
   renderLog(state.records);
+}
+
+/**
+ * 編集を抜けたときの後始末。編集に入る前のフォームをそのまま戻す。
+ *
+ * 直した記録の内容が残っていると、次の試合をその内容で記録してしまう。かと
+ * いって全部空にすると、記録の途中で履歴を直しただけなのに打ち直しになる。
+ * 「編集ボタンを押す前」に戻すのが、どちらの困りごとも起きない。
+ */
+function resetAfterEdit() {
+  const before = state.beforeEdit || {};
+  state.beforeEdit = null;
+
+  const form = $("entry-form");
+  form.reset();
+  // ランクを先に戻す。グレードと CR が触れるかどうかがこれで決まる。
+  $("field-opp_rank").value = before.opp_rank || "";
+  syncGradeField();
+  for (const [name, value] of Object.entries(before)) {
+    const field = form.elements[name];
+    if (field) field.value = value;   // radio の組は value を入れると選択が移る
+  }
+  $("field-played_at").value = before.played_at || today();
 }
 
 /** 記録後のリセット。次の試合ですぐ使う項目だけ残す。 */
