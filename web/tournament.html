@@ -175,7 +175,7 @@
              ランクマッチ側の絞り込みと違い、グレードは無い (大会には付かない)。 -->
         <section class="card filters" aria-labelledby="filter-title">
           <h2 id="filter-title">絞り込み</h2>
-          <div class="grid grid-5">
+          <div class="grid grid-6">
             <label class="field">
               <span>大会</span>
               <select id="filter-event"></select>
@@ -195,6 +195,14 @@
             <label class="field">
               <span>自分デッキ</span>
               <select id="filter-my_deck"></select>
+            </label>
+            <label class="field">
+              <span>先後</span>
+              <select id="filter-turn">
+                <option value="">すべて</option>
+                <option value="first">先攻</option>
+                <option value="second">後攻</option>
+              </select>
             </label>
           </div>
           <div class="actions">

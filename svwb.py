@@ -383,8 +383,9 @@ def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)",
 
 def filter_records(records: list[dict], since: str = "", until: str = "",
                    my_class: str = "", my_deck: str = "", opp_class: str = "",
-                   opp_grade: str = "", mode: str = "", event: str = "") -> list[dict]:
-    """期間 / クラス / デッキ / 相手グレード / モード / 大会で絞り込む。
+                   opp_grade: str = "", mode: str = "", event: str = "",
+                   turn: str = "") -> list[dict]:
+    """期間 / クラス / デッキ / 相手グレード / モード / 大会 / 先後で絞り込む。
 
     空文字の条件は無視する。mode は空文字と "all" のどちらも「絞り込まない」で、
     ここでは既定を持たない (何も指定しなければ全部返す)。CLI と HTTP は
@@ -411,6 +412,8 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
         if mode and mode != "all" and (record.get("mode") or DEFAULT_MODE) != mode:
             continue
         if event and (record.get("event") or "") != event:
+            continue
+        if turn and record.get("turn") != turn:
             continue
         out.append(record)
     return out
@@ -515,7 +518,7 @@ class Handler(BaseHTTPRequestHandler):
     def _query_filters(self, query: dict[str, list[str]]) -> dict:
         filters = {name: (query.get(name) or [""])[0]
                    for name in ("since", "until", "my_class", "my_deck", "opp_class",
-                                "opp_grade", "mode", "event")}
+                                "opp_grade", "mode", "event", "turn")}
         # モードを指定しないときはランクマッチ。混ぜた数字を既定にしないための
         # 既定値で、両方まとめて見たいときは mode=all を明示する。
         filters["mode"] = filters["mode"] or DEFAULT_MODE
@@ -725,7 +728,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         since=args.since or "", until=args.until or "",
         my_class=args.my_class or "", my_deck=args.my_deck or "",
         opp_class=args.opp_class or "", opp_grade=args.opp_grade or "",
-        mode=args.mode or "", event=args.event or "",
+        mode=args.mode or "", event=args.event or "", turn=args.turn or "",
     )
     stats = compute_stats(records, config["classes"], config["grades"])
 
@@ -810,6 +813,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
     stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
     stats.add_argument("--opp-grade", dest="opp_grade", help="相手グレードで絞り込む (EPIC 等)")
+    stats.add_argument("--turn", choices=TURNS, help="先攻 / 後攻で絞り込む")
     stats.add_argument("--mode", choices=FILTER_MODES, default=DEFAULT_MODE,
                        help="集計する対象 (既定: ランクマッチのみ。all で大会も混ぜる)")
     stats.add_argument("--event", help="大会名で絞り込む")
