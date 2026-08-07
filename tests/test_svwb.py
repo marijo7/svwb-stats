@@ -424,6 +424,16 @@ class TestFilter(unittest.TestCase):
         self.assertEqual(len(svwb.filter_records(records, opp_grade="EPIC")), 1)
         self.assertEqual(len(svwb.filter_records(records)), 3)
 
+    def test_turn_filter(self):
+        records = [
+            make_record(turn="first"),
+            make_record(turn="first"),
+            make_record(turn="second"),
+        ]
+        self.assertEqual(len(svwb.filter_records(records, turn="first")), 2)
+        self.assertEqual(len(svwb.filter_records(records, turn="second")), 1)
+        self.assertEqual(len(svwb.filter_records(records)), 3)
+
     def test_mode_and_event_filters(self):
         records = [
             make_record(mode="tournament", event="A杯"),

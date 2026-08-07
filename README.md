@@ -36,6 +36,7 @@ python3 svwb.py stats                       # 全期間
 python3 svwb.py stats --since 2026-08-01    # 期間で絞る
 python3 svwb.py stats --my-class エルフ      # クラスで絞る
 python3 svwb.py stats --opp-grade EPIC      # 相手グレードで絞る
+python3 svwb.py stats --turn first          # 先攻だけ絞る
 python3 svwb.py stats --mode tournament     # 大会だけ (既定はランクマッチのみ)
 python3 svwb.py stats --mode all            # ランクマッチと大会を混ぜる
 python3 svwb.py stats --event WB杯           # 大会名で絞る
@@ -165,7 +166,7 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 
 **両方のタブが同じ描画を使う** (`web/stats.js`)。違うのは対象だけで、ランクマッチのタブはランクマッチの戦績、大会のタブは大会の戦績を集計する。相手グレードはランクマッチ帯にしか無い値なので、大会のタブにはそのセクションが無い。
 
-絞り込みは、ランクマッチのタブが 期間・自分クラス・自分デッキ、大会のタブが 大会・期間・自分クラス・自分デッキ。どちらも API のクエリ (`/api/stats?since=…&opp_grade=EPIC`) にそのまま対応する。
+絞り込みは、ランクマッチのタブが 期間・自分クラス・自分デッキ・先後、大会のタブが 大会・期間・自分クラス・自分デッキ・先後。どちらも API のクエリ (`/api/stats?since=…&opp_grade=EPIC`、`turn=first` など) にそのまま対応する。
 
 **モードを指定しない集計はランクマッチのみ** (`svwb.py stats` / `/api/stats`)。両方を混ぜるときは `--mode all` / `?mode=all` と明示する。詳しくは [タブとデータの関係](#タブとデータの関係)。
 
