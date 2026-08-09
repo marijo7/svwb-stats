@@ -211,7 +211,9 @@ function renderPie(stats) {
     return;
   }
   $("pie-chart").replaceChildren(renderPieChart(slices, total, "相手クラス"));
-  renderPieLegend(slices, total);
+  // 凡例だけ試合数の多い順に。扇の並びと色は config 順で固定のまま
+  // (pieSlices のコメント参照)。凡例は一覧性を優先して試合数順にする。
+  renderPieLegend([...slices].sort((a, b) => b.games - a.games), total);
 }
 
 /**
