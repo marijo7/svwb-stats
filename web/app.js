@@ -70,7 +70,6 @@ const state = {
   editingId: null,
   beforeEdit: null,    // 編集に入る前のフォーム。抜けたときに戻すため
   logExpanded: false,
-  pieScope: "my",      // クラス別円グラフの対象 ("my" = 自分クラス / "opp" = 相手クラス)
 };
 
 // ---------------------------------------------------------------------------
@@ -376,7 +375,7 @@ async function refresh() {
 
   fillDynamicOptions(all.records);
   describeFilters();
-  renderStats(stats, { pieScope: state.pieScope });
+  renderStats(stats);
   renderLog(records);
 
   const overall = stats.overall;
@@ -406,15 +405,6 @@ async function init() {
     state.logExpanded = true;
     renderLog(state.records);
   });
-
-  // 円グラフの自分 / 相手切り替え。同じ集計結果の見方を変えるだけなので
-  // サーバーには取りに行かない。
-  for (const input of document.querySelectorAll('input[name="pie_scope"]')) {
-    input.addEventListener("change", () => {
-      state.pieScope = input.value;
-      if (state.stats) renderPie(state.stats, state.pieScope);
-    });
-  }
 
   for (const id of FILTER_IDS) {
     $(id).addEventListener("change", () => refresh().catch(reportFatal));

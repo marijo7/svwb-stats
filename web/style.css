@@ -367,13 +367,6 @@ th:first-child, td:first-child { text-align: left; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @container (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
 
-/* ---------- クラス別の円グラフ ---------- */
-
-.section-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.section-head h3 { margin-right: auto; }
-/* 見出しの横に置く小さい切り替えなので、フォームのトグルほど幅を取らせない。 */
-.section-head .toggles label { flex: 0 0 auto; }
-.section-head .toggles span { padding: 4px 12px; font-size: 12px; }
 
 /* 円グラフを小さくして凡例に幅を回す (220px → 160px)。SVG は viewBox 基準の
    ベクターなので、中の数字・扇の太さは表示サイズに合わせて自動で縮む。 */

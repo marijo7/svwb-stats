@@ -201,11 +201,8 @@ function renderPieLegend(slices, total) {
   table.appendChild(body);
 }
 
-/** scope は "my" (自分クラス) か "opp" (相手クラス)。同じ集計の見方を変えるだけ。 */
-function renderPie(stats, scope) {
-  const opponent = scope === "opp";
-  const label = opponent ? "相手クラス" : "自分クラス";
-  const slices = pieSlices(opponent ? stats.by_opp_class : stats.by_my_class, stats.classes);
+function renderPie(stats) {
+  const slices = pieSlices(stats.by_opp_class, stats.classes);
   const total = slices.reduce((sum, slice) => sum + slice.games, 0);
 
   if (!total) {
@@ -213,7 +210,7 @@ function renderPie(stats, scope) {
     $("pie-legend").replaceChildren();
     return;
   }
-  $("pie-chart").replaceChildren(renderPieChart(slices, total, label));
+  $("pie-chart").replaceChildren(renderPieChart(slices, total, "相手クラス"));
   renderPieLegend(slices, total);
 }
 
@@ -221,14 +218,14 @@ function renderPie(stats, scope) {
  * 集計をまとめて描く。ページに無いセクションは飛ばす。
  * headline は先頭のカードの見出し ("全体" / "この大会" など)。
  */
-function renderStats(stats, { pieScope = "my", headline = "全体" } = {}) {
+function renderStats(stats, { headline = "全体" } = {}) {
   const hasData = stats.overall.games > 0;
   $("stats-empty").hidden = hasData;
   $("stats-body").hidden = !hasData;
   if (!hasData) return;
 
   if (has("headline")) renderHeadline(stats, headline);
-  if (has("pie-chart")) renderPie(stats, pieScope);
+  if (has("pie-chart")) renderPie(stats);
   if (has("matrix")) renderMatrix(stats);
   if (has("by-deck")) renderBreakdown("by-deck", stats.by_my_deck, "デッキ");
   if (has("by-opp")) renderBreakdown("by-opp", stats.by_opp_class, "クラス");

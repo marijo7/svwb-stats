@@ -37,7 +37,6 @@ const state = {
   allRecords: [],     // 大会の全戦績。候補作りと「次のラウンド」の判定に使う
   stats: null,
   editing: null,      // 編集中の戦績 (そのまま持って played_at / event を引き継ぐ)
-  pieScope: "my",     // クラス別円グラフの対象 ("my" = 自分クラス / "opp" = 相手クラス)
 };
 
 // ---------------------------------------------------------------------------
@@ -458,7 +457,7 @@ async function refresh() {
   state.stats = stats;
 
   describeFilters();
-  renderStats(stats, { pieScope: state.pieScope, headline: "全体" });
+  renderStats(stats, { headline: "全体" });
   renderRounds(state.records);
 
   const overall = stats.overall;
@@ -512,15 +511,6 @@ async function init() {
     focusCurrentEvent();
     refresh().catch(reportFatal);
   });
-
-  // 円グラフの自分 / 相手切り替え。同じ集計結果の見方を変えるだけなので
-  // サーバーには取りに行かない。
-  for (const input of document.querySelectorAll('input[name="pie_scope"]')) {
-    input.addEventListener("change", () => {
-      state.pieScope = input.value;
-      if (state.stats) renderPie(state.stats, state.pieScope);
-    });
-  }
 
   await refresh();
 }
