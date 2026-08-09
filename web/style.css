@@ -315,17 +315,23 @@ button:disabled, button:disabled:hover { opacity: .5; cursor: not-allowed; borde
 
 /* ---------- stats ---------- */
 
-.stat-row { display: flex; gap: 12px; flex-wrap: wrap; }
+/* 集計欄 (ランクマッチ・大会の両方が同じ #stats-body を使う) はコンパクトに。
+   h3 / caption / セルの余白はここでしか使っていないので、直接詰めてよい。 */
+#stats-body h3 { margin: 14px 0 6px; font-size: 13px; }
+#stats-body .caption { margin: 0 0 6px; font-size: 11px; }
+#stats-body th, #stats-body td { padding: 4px 6px; }
+
+.stat-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .stat {
-  flex: 1 1 160px;
+  flex: 1 1 140px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 8px 10px;
 }
-.stat .label { color: var(--muted); font-size: 12px; }
-.stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
-.stat .detail { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.stat .label { color: var(--muted); font-size: 11px; }
+.stat .value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat .detail { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 
 .table-scroll { overflow-x: auto; min-width: 0; }
 
@@ -358,7 +364,7 @@ th:first-child, td:first-child { text-align: left; }
   vertical-align: middle;
 }
 
-.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @container (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
 
 /* ---------- クラス別の円グラフ ---------- */
@@ -369,10 +375,12 @@ th:first-child, td:first-child { text-align: left; }
 .section-head .toggles label { flex: 0 0 auto; }
 .section-head .toggles span { padding: 4px 12px; font-size: 12px; }
 
-.pie-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
+/* 円グラフを小さくして凡例に幅を回す (220px → 160px)。SVG は viewBox 基準の
+   ベクターなので、中の数字・扇の太さは表示サイズに合わせて自動で縮む。 */
+.pie-wrap { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: center; }
 @container (max-width: 560px) { .pie-wrap { grid-template-columns: 1fr; } }
 
-.pie { width: 100%; max-width: 220px; height: auto; display: block; margin: 0 auto; }
+.pie { width: 100%; max-width: 160px; height: auto; display: block; margin: 0 auto; }
 .pie-slice { transition: opacity .12s; }
 /* どれか 1 つに触れている間は他を薄くする。凡例と見比べなくても
    「今どのクラスを見ているか」が分かる。 */
