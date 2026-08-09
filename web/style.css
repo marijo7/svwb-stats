@@ -328,6 +328,13 @@ button:disabled, button:disabled:hover { opacity: .5; cursor: not-allowed; borde
 .stat .detail { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .table-scroll { overflow-x: auto; min-width: 0; }
+
+/* 履歴だけ縦にも枠を切る。行数が多いと表がページを押し広げて、見に行くたびに
+   ページ全体をスクロールすることになるため。枠の中だけ縦スクロールし、
+   見出し行は sticky で固定するので、下の行を見ていてもどの列か分かる。
+   おおよそ 10 行 + 見出し分の高さ。 */
+.log-scroll { max-height: 460px; overflow-y: auto; }
+.log-scroll thead th { position: sticky; top: 0; background: var(--surface); }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; }

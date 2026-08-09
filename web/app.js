@@ -56,8 +56,12 @@ const FILTERS = {
 };
 const FILTER_IDS = Object.keys(FILTERS);
 
-/** 履歴の既定表示件数。 */
-const LOG_PAGE_SIZE = 30;
+/**
+ * 履歴の既定表示件数。履歴の枠は縦スクロールの固定高さ (style.css の
+ * .log-scroll) なので、ここを増やしても画面の高さは変わらない。枠の中で
+ * 「残りを表示」を押すまでにスクロールする量を抑えるための値。
+ */
+const LOG_PAGE_SIZE = 15;
 
 const state = {
   config: { classes: [], ranks: [], grades: [], grade_rank: "", grade_thresholds: {} },

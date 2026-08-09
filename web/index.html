@@ -209,7 +209,9 @@
     <!-- ---------------- 履歴 ---------------- -->
     <section class="card" aria-labelledby="log-title">
       <h2 id="log-title">履歴 <span class="count" id="log-count"></span></h2>
-      <div class="table-scroll">
+      <!-- 縦スクロールは table-scroll (横用) とは別の枠。中だけ縦に流し、
+           見出し行を sticky で固定するので、ページ自体は伸びない。 -->
+      <div class="table-scroll log-scroll">
         <table class="log" id="log"></table>
       </div>
       <div class="actions">
