@@ -23,6 +23,29 @@
  */
 const CARRY_FIELDS = ["my_class", "my_deck", "opp_rank"];
 
+/** 今チェックされている相手ランクの値。無ければ空文字。 */
+function checkedOppRank() {
+  const checked = document.querySelector('input[name="opp_rank"]:checked');
+  return checked ? checked.value : "";
+}
+
+/**
+ * 相手ランクのトグルを作る。config.ranks の数だけボタンが並ぶ (既定は
+ * Master / Grand Master の 2 つ)。select ではなくトグルにしたのは、必須項目を
+ * 「未選択のまま素通りできる空欄」に見せたくないため。
+ */
+function renderRankToggle() {
+  const box = $("field-opp_rank");
+  box.replaceChildren(...state.config.ranks.map((rank) =>
+    el("label", {}, [
+      el("input", { type: "radio", name: "opp_rank", value: rank, required: "" }),
+      el("span", { text: rank }),
+    ])));
+  for (const input of box.querySelectorAll("input")) {
+    input.addEventListener("change", syncGradeField);
+  }
+}
+
 /** 絞り込みの入力欄 id と、それが対応する API のクエリ名。 */
 const FILTERS = {
   "filter-since": "since",
@@ -61,7 +84,7 @@ function filterValues() {
 function syncGradeField() {
   const select = $("field-opp_grade");
   const { grades, grade_rank: gradeRank } = state.config;
-  const atGradeRank = !gradeRank || $("field-opp_rank").value === gradeRank;
+  const atGradeRank = !gradeRank || checkedOppRank() === gradeRank;
   const active = grades.length > 0 && atGradeRank;
   select.disabled = !active;
   if (!active) select.value = "";
@@ -196,7 +219,7 @@ function startEdit(record) {
   state.editingId = record.id;
   $("field-id").value = record.id;
   $("field-played_at").value = record.played_at || "";
-  $("field-opp_rank").value = record.opp_rank || "";
+  $("entry-form").elements["opp_rank"].value = record.opp_rank || "";
   syncGradeField();                       // ランクを入れてからでないと有効化されない
   $("field-opp_grade").value = record.opp_grade || "";
   $("field-opp_cr").value = record.opp_cr === null || record.opp_cr === undefined ? "" : record.opp_cr;
@@ -242,7 +265,7 @@ function resetAfterEdit() {
   const form = $("entry-form");
   form.reset();
   // ランクを先に戻す。グレードと CR が触れるかどうかがこれで決まる。
-  $("field-opp_rank").value = before.opp_rank || "";
+  form.elements["opp_rank"].value = before.opp_rank || "";
   syncGradeField();
   for (const [name, value] of Object.entries(before)) {
     const field = form.elements[name];
@@ -255,10 +278,14 @@ function resetAfterEdit() {
 function resetForNextGame(submitted) {
   const carried = Object.fromEntries(CARRY_FIELDS.map((f) => [f, submitted[f] || ""]));
   const playedAt = submitted.played_at;
-  $("entry-form").reset();
+  const form = $("entry-form");
+  form.reset();
   $("field-played_at").value = playedAt;
+  // form.elements 経由にする。opp_rank はトグル (input の組) で field-opp_rank
+  // 自体は div なので .value を持たない (radio の組は value を入れると選択が移る)。
   for (const [name, value] of Object.entries(carried)) {
-    $(`field-${name}`).value = value;
+    const field = form.elements[name];
+    if (field) field.value = value;
   }
   syncGradeField();   // ランクを戻したあとで相手グレード / 相手 CR の有効・無効を決める
   $("field-opp_class").focus();
@@ -360,14 +387,13 @@ async function init() {
 
   replaceOptions($("field-my_class"), state.config.classes, { placeholder: "選択" });
   replaceOptions($("field-opp_class"), state.config.classes, { placeholder: "選択" });
-  replaceOptions($("field-opp_rank"), state.config.ranks, { placeholder: "未設定" });
+  renderRankToggle();
   replaceOptions($("field-opp_grade"), state.config.grades, { placeholder: "未設定" });
   replaceOptions($("filter-my_class"), state.config.classes, { placeholder: "すべて" });
   syncGradeField();
 
   $("field-played_at").value = today();
   $("entry-form").addEventListener("submit", submitForm);
-  $("field-opp_rank").addEventListener("change", syncGradeField);
   $("field-opp_cr").addEventListener("input", autoSetGradeFromCr);
   // 手で選び直したら「CR から自動」の表示は消す。
   $("field-opp_grade").addEventListener("change", syncGradeField);

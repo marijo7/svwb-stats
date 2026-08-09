@@ -62,13 +62,14 @@
               </label>
             </div>
 
-            <!-- 帯の情報はデッキを選んだあと。ランク・グレード・CR はすべて相手の値。 -->
-            <div class="grid">
-              <label class="field">
-                <span>相手ランク <em>任意</em></span>
-                <select name="opp_rank" id="field-opp_rank"></select>
-              </label>
-            </div>
+            <!-- 帯の情報はデッキを選んだあと。ランク・グレード・CR はすべて相手の値。
+                 相手ランクはグレード / CR を受け付けるかどうかの判定にも使うため必須。
+                 選択肢は config.json の ranks の数だけ JS 側でボタンを作る
+                 (既定は Master / Grand Master の 2 つ)。 -->
+            <fieldset class="field toggle-group">
+              <legend>相手ランク</legend>
+              <div class="toggles" id="field-opp_rank"></div>
+            </fieldset>
 
             <!-- グレードと CR は相手ランクがグラマスのときだけ入る。
                  いつも一緒に動くので対にしてある。 -->

@@ -93,7 +93,7 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 | `opp_deck` | | 相手のデッキ名 |
 | `turn` | ○ | `first` (先攻) / `second` (後攻) |
 | `result` | ○ | `win` / `loss` |
-| `opp_rank` | | **相手の** ランク帯 (`Master` / `Grand Master`) |
+| `opp_rank` | ○※ | **相手の** ランク帯 (`Master` / `Grand Master`)。※ランクマッチのときだけ必須 (大会には項目自体が無い) |
 | `opp_grade` | | **相手の** CR グレード (`EPIC未満` / `EPIC` / `ULTIMATE` / `LEGEND` / `BEYOND`)。`opp_rank` が `Grand Master` のときだけ入力できる |
 | `opp_cr` | | **相手の** CR。`opp_rank` が `Grand Master` のときだけ入力できる。未入力は `null` |
 | `note` | | メモ |
@@ -109,6 +109,8 @@ New-NetFirewallRule -DisplayName "svwb-stats 8787" -Direction Inbound -Protocol 
 **相手グレードと相手 CR は引き継がない。** 対戦相手ごとに違う値なので、前の試合の値が残っていると別人の数字をそのまま記録してしまう。相手ランクだけは Master / Grand Master の 2 段しかなく同じ帯とばかり当たるので引き継ぐ (違う帯に当たったら選び直す)。
 
 入力欄は上から 日付 → 自分 (クラス・デッキ) → 相手 (クラス・デッキ) → 相手の帯 (ランク・グレード・CR) の順。毎試合必ず入れるものが上に来る。
+
+**相手ランクは select ではなくトグル。** `ranks` (既定は Master / Grand Master の 2 つ) の数だけボタンが並び、押して選ぶ。必須項目なので選ばずに送信すると止まる — 空欄のまま素通りできると、相手グレードや相手 CR を一切記録できない画面になってしまうため。
 
 **履歴から編集して更新した (または編集をやめた) あとは、編集ボタンを押す前の入力に戻る。** 直した記録の内容がフォームに残らないので、続けて次の試合を記録できる。
 

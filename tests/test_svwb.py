@@ -34,7 +34,10 @@ def make_record(**overrides):
         "opp_deck": "",
         "turn": "first",
         "result": "win",
-        "opp_rank": "",
+        # 相手ランクはランクマッチでは必須なので、無関係なテストが軒並み
+        # 失敗しないよう妥当な既定値を持たせる。空で試したいテストは
+        # opp_rank="" を明示的に上書きする。
+        "opp_rank": "Master",
         "opp_grade": "",
         "opp_cr": None,
         "note": "",
@@ -113,11 +116,13 @@ class TestValidation(unittest.TestCase):
         self.assertEqual(record["note"], "メモ")
 
     def test_optional_fields_default_to_empty(self):
-        payload = {"my_class": "エルフ", "opp_class": "ロイヤル", "turn": "second", "result": "loss"}
+        # opp_rank はランクマッチでは必須なので、この確認からは外れる
+        # (test_rejects_unknown_or_missing_opp_rank で別に見る)。
+        payload = {"my_class": "エルフ", "opp_class": "ロイヤル", "turn": "second", "result": "loss",
+                  "opp_rank": "Master"}
         record = svwb.validate_record(payload, CONFIG)
         self.assertEqual(record["my_deck"], "")
         self.assertEqual(record["opp_deck"], "")
-        self.assertEqual(record["opp_rank"], "")
         # 日付未指定なら今日。
         self.assertRegex(record["played_at"], r"^\d{4}-\d{2}-\d{2}$")
 
@@ -142,10 +147,15 @@ class TestValidation(unittest.TestCase):
         with self.assertRaises(svwb.ValidationError):
             svwb.validate_record(make_record(result="draw"), CONFIG)
 
-    def test_rejects_unknown_opp_rank_but_allows_empty(self):
-        with self.assertRaises(svwb.ValidationError):
+    def test_rejects_unknown_or_missing_opp_rank(self):
+        # ランクマッチでは相手ランクが必須。空のままだとグレード / CR を
+        # 一切記録できない画面になってしまうため。
+        with self.assertRaises(svwb.ValidationError) as ctx:
             svwb.validate_record(make_record(opp_rank="B9"), CONFIG)
-        self.assertEqual(svwb.validate_record(make_record(opp_rank=""), CONFIG)["opp_rank"], "")
+        self.assertIn("opp_rank", ctx.exception.errors)
+        with self.assertRaises(svwb.ValidationError) as ctx:
+            svwb.validate_record(make_record(opp_rank=""), CONFIG)
+        self.assertIn("opp_rank", ctx.exception.errors)
 
     def test_grade_is_accepted_at_grand_master(self):
         record = svwb.validate_record(make_record(opp_rank="Grand Master", opp_grade="EPIC"), CONFIG)
@@ -164,7 +174,8 @@ class TestValidation(unittest.TestCase):
             self.assertIn("opp_grade", ctx.exception.errors)
 
     def test_empty_grade_is_fine_at_any_rank(self):
-        for rank in ("", "AA0", "Grand Master"):
+        # 空ランクは別の関心事 (必須チェック) なのでここでは扱わない。
+        for rank in ("AA0", "Grand Master"):
             with self.subTest(opp_rank=rank):
                 record = svwb.validate_record(make_record(opp_rank=rank, opp_grade=""), CONFIG)
                 self.assertEqual(record["opp_grade"], "")
@@ -182,7 +193,8 @@ class TestValidation(unittest.TestCase):
         for empty in (None, ""):
             with self.subTest(empty=empty):
                 self.assertIsNone(svwb.validate_record(make_record(opp_cr=empty), CONFIG)["opp_cr"])
-        payload = {"my_class": "エルフ", "opp_class": "ロイヤル", "turn": "first", "result": "win"}
+        payload = {"my_class": "エルフ", "opp_class": "ロイヤル", "turn": "first", "result": "win",
+                  "opp_rank": "Master"}
         self.assertIsNone(svwb.validate_record(payload, CONFIG)["opp_cr"])
 
     def test_rejects_non_integer_opp_cr(self):
@@ -217,7 +229,8 @@ class TestValidation(unittest.TestCase):
     def test_reports_every_bad_field_at_once(self):
         with self.assertRaises(svwb.ValidationError) as ctx:
             svwb.validate_record({"my_class": "?", "opp_class": "?", "turn": "?", "result": "?"}, CONFIG)
-        self.assertEqual(set(ctx.exception.errors), {"my_class", "opp_class", "turn", "result"})
+        self.assertEqual(set(ctx.exception.errors),
+                         {"my_class", "opp_class", "turn", "result", "opp_rank"})
 
     def test_rejects_overlong_text(self):
         with self.assertRaises(svwb.ValidationError):
@@ -247,6 +260,11 @@ class TestTournamentFields(unittest.TestCase):
         # BO1 では相手の持ち込みが分からないことも多い。opp_class と違い空を許す。
         record = svwb.validate_record(make_record(mode="tournament"), CONFIG)
         self.assertEqual(record["opp_class2"], "")
+
+    def test_opp_rank_is_optional_in_a_tournament(self):
+        # 大会の画面にはこの項目自体が無い。ランクマッチと違って必須にしない。
+        record = svwb.validate_record(make_record(mode="tournament", opp_rank=""), CONFIG)
+        self.assertEqual(record["opp_rank"], "")
 
     def test_rejects_unknown_class_for_the_other_deck(self):
         with self.assertRaises(svwb.ValidationError) as ctx:
@@ -649,6 +667,17 @@ class TestHttpApi(unittest.TestCase):
         status, body = self.request("POST", "/api/records", make_record(my_class="ネクロマンサー"))
         self.assertEqual(status, 400)
         self.assertIn("my_class", body["fields"])
+
+    def test_035_opp_rank_is_required_on_ladder_but_not_tournament(self):
+        status, body = self.request("POST", "/api/records", make_record(opp_rank=""))
+        self.assertEqual(status, 400)
+        self.assertIn("opp_rank", body["fields"])
+
+        status, created = self.request(
+            "POST", "/api/records", make_record(mode="tournament", opp_rank="", event="杯"))
+        self.assertEqual(status, 201)
+        self.assertEqual(created["opp_rank"], "")
+        self.request("DELETE", f"/api/records/{created['id']}")
 
     def test_04_stats_respects_query_filters(self):
         self.request("POST", "/api/records", make_record(played_at="2026-07-01", result="win"))

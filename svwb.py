@@ -181,10 +181,23 @@ def validate_record(payload: dict, config: dict) -> dict:
         errors["result"] = "勝ち / 負け を選択してください"
     record["result"] = result if result in RESULTS else ""
 
+    # モードはここで先に確定させる。相手ランクを必須にするかどうかの判定に使う
+    # (大会の画面にはこの項目自体が無いので、大会モードでは必須にしない)。
+    mode = payload.get("mode") or DEFAULT_MODE
+    if mode not in MODES:
+        errors["mode"] = "モードの選択肢にありません"
+        mode = DEFAULT_MODE
+    record["mode"] = mode
+    tournament = mode == "tournament"
+
     # 相手のランク帯。相手グレード / 相手 CR を受け付けるかの判定にも使う
-    # (グレードと CR はグラマス昇格後にしか存在しないため)。
+    # (グレードと CR はグラマス昇格後にしか存在しないため)。ランクマッチでは
+    # 必須 — 空のままだと grade_rank との結び付けが常に「対象外」になり、
+    # グレードや CR を一切記録できない画面になってしまう。
     rank = payload.get("opp_rank") or ""
-    if rank and rank not in config["ranks"]:
+    if not rank and not tournament:
+        errors["opp_rank"] = "ランクを選択してください"
+    elif rank and rank not in config["ranks"]:
         errors["opp_rank"] = "ランクの選択肢にありません"
     record["opp_rank"] = rank if isinstance(rank, str) else ""
 
@@ -220,12 +233,7 @@ def validate_record(payload: dict, config: dict) -> dict:
                     record["opp_cr"] = opp_cr
 
     # 大会 (2 デッキ BO1) 用の項目。ランクマッチの記録には付かない。
-    mode = payload.get("mode") or DEFAULT_MODE
-    if mode not in MODES:
-        errors["mode"] = "モードの選択肢にありません"
-        mode = DEFAULT_MODE
-    record["mode"] = mode
-    tournament = mode == "tournament"
+    # mode / tournament はここより前 (相手ランクの判定のため) で確定済み。
 
     # 大会名・対戦相手・ラウンド・相手のもう 1 デッキは大会モード専用。ランクマッチの
     # 記録に紛れ込むと「この大会だけの集計」が信用できなくなるので、ここで弾く。
