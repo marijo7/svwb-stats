@@ -323,7 +323,7 @@ button:disabled, button:disabled:hover { opacity: .5; cursor: not-allowed; borde
 
 .stat-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .stat {
-  flex: 1 1 110px;
+  flex: 0 1 160px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
