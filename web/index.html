@@ -47,7 +47,7 @@
               </label>
               <label class="field">
                 <span>自分デッキ <em>任意</em></span>
-                <input type="text" name="my_deck" id="field-my_deck" list="deck-list" placeholder="例: アグロエルフ" maxlength="120">
+                <input type="text" name="my_deck" id="field-my_deck" list="deck-list-my" placeholder="例: アグロエルフ" maxlength="120">
               </label>
             </div>
 
@@ -58,7 +58,7 @@
               </label>
               <label class="field">
                 <span>相手デッキ <em>任意</em></span>
-                <input type="text" name="opp_deck" id="field-opp_deck" list="deck-list" placeholder="例: ミッドロイヤル" maxlength="120">
+                <input type="text" name="opp_deck" id="field-opp_deck" list="deck-list-opp" placeholder="例: ミッドロイヤル" maxlength="120">
               </label>
             </div>
 
@@ -86,7 +86,10 @@
               </label>
             </div>
 
-            <datalist id="deck-list"></datalist>
+            <!-- デッキ名の候補は自分 / 相手それぞれのクラス欄で絞るので別々の datalist にしてある
+                 (選んでいるクラスに合わせて JS 側で中身を差し替える)。 -->
+            <datalist id="deck-list-my"></datalist>
+            <datalist id="deck-list-opp"></datalist>
 
             <div class="grid">
               <fieldset class="field toggle-group">

@@ -37,7 +37,16 @@ const state = {
   allRecords: [],     // 大会の全戦績。候補作りと「次のラウンド」の判定に使う
   stats: null,
   editing: null,      // 編集中の戦績 (そのまま持って played_at / event を引き継ぐ)
+  deckIndex: new Map(),   // クラス名 → デッキ名一覧 (デッキ欄の候補をクラスで絞るため)
 };
+
+/** デッキ欄 (①②・相手・相手のもう1デッキ) の候補を、今選んでいるクラスで絞り直す。 */
+function refreshDeckLists() {
+  updateDeckList(state.deckIndex, "deck-list-deck1", "setup-deck1_class");
+  updateDeckList(state.deckIndex, "deck-list-deck2", "setup-deck2_class");
+  updateDeckList(state.deckIndex, "deck-list-opp", "field-opp_class");
+  updateDeckList(state.deckIndex, "deck-list-opp2", "field-opp_class2");
+}
 
 // ---------------------------------------------------------------------------
 // 大会設定
@@ -283,6 +292,7 @@ function startEdit(record) {
   $("field-opp_class2").value = record.opp_class2 || "";
   $("field-opp_deck2").value = record.opp_deck2 || "";
   $("field-note").value = record.note || "";
+  refreshDeckLists();
   for (const input of $("round-form").querySelectorAll('input[name="turn"], input[name="result"]')) {
     input.checked = input.value === record.turn || input.value === record.result;
   }
@@ -323,6 +333,7 @@ function resetForNextRound() {
   $("field-opp_class2").value = "";
   $("field-opp_deck2").value = "";
   $("field-note").value = "";
+  refreshDeckLists();
   for (const input of $("round-form").querySelectorAll('input[name="turn"], input[name="result"]')) {
     input.checked = false;
   }
@@ -403,19 +414,19 @@ function describeFilters() {
  * 記録済みの大会名に足しておく (これが絞り込みの既定値になる)。
  */
 function fillDynamicOptions(records) {
-  const decks = new Set();
   const myDecks = new Set();
   const events = [];
   for (const record of records) {
-    if (record.my_deck) { decks.add(record.my_deck); myDecks.add(record.my_deck); }
-    if (record.opp_deck) decks.add(record.opp_deck);
-    if (record.opp_deck2) decks.add(record.opp_deck2);
+    if (record.my_deck) myDecks.add(record.my_deck);
     if (record.event && !events.includes(record.event)) events.push(record.event);
   }
   events.reverse();   // 新しい大会ほど上に
   if (state.setup.event && !events.includes(state.setup.event)) events.unshift(state.setup.event);
 
-  $("deck-list").replaceChildren(...[...decks].sort().map((deck) => el("option", { value: deck })));
+  state.deckIndex = buildDeckIndex(records,
+    [["my_class", "my_deck"], ["opp_class", "opp_deck"], ["opp_class2", "opp_deck2"]]);
+  refreshDeckLists();
+
   $("event-list").replaceChildren(...events.map((name) => el("option", { value: name })));
   replaceOptions($("filter-event"), events, { placeholder: "すべての大会" });
   replaceOptions($("filter-my_deck"), [...myDecks].sort(), { placeholder: "すべて" });
@@ -488,6 +499,11 @@ async function init() {
   for (const id of ["setup-deck1_class", "setup-deck1_deck", "setup-deck2_class", "setup-deck2_deck"]) {
     $(id).addEventListener("input", syncSetup);
   }
+  // デッキ欄の候補 (datalist) は選んでいるクラスのものだけに絞る。
+  $("setup-deck1_class").addEventListener("change", refreshDeckLists);
+  $("setup-deck2_class").addEventListener("change", refreshDeckLists);
+  $("field-opp_class").addEventListener("change", refreshDeckLists);
+  $("field-opp_class2").addEventListener("change", refreshDeckLists);
   // 畳んだ / 開いたを覚える。次に開いたときも同じ状態で始まる。
   $("setup-panel").addEventListener("toggle", syncSetup);
   // 大会名と日付を変えると記録先の大会そのものが変わる。絞り込みもその大会へ

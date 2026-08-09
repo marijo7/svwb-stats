@@ -70,7 +70,14 @@ const state = {
   editingId: null,
   beforeEdit: null,    // 編集に入る前のフォーム。抜けたときに戻すため
   logExpanded: false,
+  deckIndex: new Map(),   // クラス名 → デッキ名一覧 (デッキ欄の候補をクラスで絞るため)
 };
+
+/** 自分 / 相手それぞれのデッキ欄候補を、今選んでいるクラスで絞り直す。 */
+function refreshDeckLists() {
+  updateDeckList(state.deckIndex, "deck-list-my", "field-my_class");
+  updateDeckList(state.deckIndex, "deck-list-opp", "field-opp_class");
+}
 
 // ---------------------------------------------------------------------------
 // 描画ヘルパー
@@ -231,6 +238,7 @@ function startEdit(record) {
   $("field-opp_class").value = record.opp_class || "";
   $("field-opp_deck").value = record.opp_deck || "";
   $("field-note").value = record.note || "";
+  refreshDeckLists();
   for (const input of document.querySelectorAll('input[name="turn"]')) {
     input.checked = input.value === record.turn;
   }
@@ -275,6 +283,7 @@ function resetAfterEdit() {
     if (field) field.value = value;   // radio の組は value を入れると選択が移る
   }
   $("field-played_at").value = before.played_at || today();
+  refreshDeckLists();
 }
 
 /** 記録後のリセット。次の試合ですぐ使う項目だけ残す。 */
@@ -291,6 +300,7 @@ function resetForNextGame(submitted) {
     if (field) field.value = value;
   }
   syncGradeField();   // ランクを戻したあとで相手グレード / 相手 CR の有効・無効を決める
+  refreshDeckLists();
   $("field-opp_class").focus();
 }
 
@@ -332,16 +342,13 @@ async function removeRecord(record) {
 // 読み込み
 // ---------------------------------------------------------------------------
 
-/** 入力済みのデッキ名を候補として集める (絞り込みでは自分デッキのみ)。 */
-function collectDecks(records) {
-  const all = new Set();
+/** 絞り込み欄 (自分デッキ) の候補。入力済みの自分デッキ名を集める。 */
+function collectMyDecks(records) {
   const mine = new Set();
   for (const record of records) {
-    if (record.my_deck) { all.add(record.my_deck); mine.add(record.my_deck); }
-    if (record.opp_deck) all.add(record.opp_deck);
-    if (record.opp_deck2) all.add(record.opp_deck2);
+    if (record.my_deck) mine.add(record.my_deck);
   }
-  return { all: [...all].sort(), mine: [...mine].sort() };
+  return [...mine].sort();
 }
 
 function describeFilters() {
@@ -356,9 +363,9 @@ function describeFilters() {
 
 /** ランクマッチの全戦績から作るデッキ名の候補。絞り込み結果ではなく常に全件から作る。 */
 function fillDynamicOptions(records) {
-  const decks = collectDecks(records);
-  $("deck-list").replaceChildren(...decks.all.map((deck) => el("option", { value: deck })));
-  replaceOptions($("filter-my_deck"), decks.mine, { placeholder: "すべて" });
+  state.deckIndex = buildDeckIndex(records, [["my_class", "my_deck"], ["opp_class", "opp_deck"]]);
+  refreshDeckLists();
+  replaceOptions($("filter-my_deck"), collectMyDecks(records), { placeholder: "すべて" });
 }
 
 async function refresh() {
@@ -405,6 +412,10 @@ async function init() {
     state.logExpanded = true;
     renderLog(state.records);
   });
+
+  // デッキ欄の候補 (datalist) は選んでいるクラスのものだけに絞る。
+  $("field-my_class").addEventListener("change", refreshDeckLists);
+  $("field-opp_class").addEventListener("change", refreshDeckLists);
 
   for (const id of FILTER_IDS) {
     $(id).addEventListener("change", () => refresh().catch(reportFatal));

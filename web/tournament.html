@@ -55,7 +55,7 @@
               </label>
               <label class="field">
                 <span>デッキ名 <em>任意</em></span>
-                <input type="text" id="setup-deck1_deck" list="deck-list" maxlength="120"
+                <input type="text" id="setup-deck1_deck" list="deck-list-deck1" maxlength="120"
                        placeholder="例: 連携ロイヤル">
               </label>
             </div>
@@ -70,13 +70,16 @@
               </label>
               <label class="field">
                 <span>デッキ名 <em>任意</em></span>
-                <input type="text" id="setup-deck2_deck" list="deck-list" maxlength="120"
+                <input type="text" id="setup-deck2_deck" list="deck-list-deck2" maxlength="120"
                        placeholder="例: 進化エルフ">
               </label>
             </div>
           </fieldset>
 
-          <datalist id="deck-list"></datalist>
+          <!-- デッキ名の候補はそれぞれのクラス欄で絞るので別々の datalist にしてある
+               (選んでいるクラスに合わせて JS 側で中身を差し替える)。 -->
+          <datalist id="deck-list-deck1"></datalist>
+          <datalist id="deck-list-deck2"></datalist>
 
           <p class="hint" id="setup-note" hidden>日付が変わったので、前の大会の設定は消してあります。</p>
 
@@ -114,7 +117,7 @@
               </label>
               <label class="field">
                 <span>相手デッキ <em>任意</em></span>
-                <input type="text" id="field-opp_deck" list="deck-list" maxlength="120"
+                <input type="text" id="field-opp_deck" list="deck-list-opp" maxlength="120"
                        placeholder="例: ミッドロイヤル">
               </label>
             </div>
@@ -128,11 +131,14 @@
                 </label>
                 <label class="field">
                   <span>デッキ名</span>
-                  <input type="text" id="field-opp_deck2" list="deck-list" maxlength="120"
+                  <input type="text" id="field-opp_deck2" list="deck-list-opp2" maxlength="120"
                          placeholder="例: 財宝ドラゴン">
                 </label>
               </div>
             </fieldset>
+
+            <datalist id="deck-list-opp"></datalist>
+            <datalist id="deck-list-opp2"></datalist>
 
             <div class="grid">
               <fieldset class="field toggle-group">

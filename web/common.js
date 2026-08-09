@@ -167,6 +167,32 @@ function renderBreakdown(tableId, rows, keyLabel) {
   table.appendChild(body);
 }
 
+/**
+ * レコード群から「クラス名 → そのクラスで使われたデッキ名一覧」を作る。
+ * pairs は [クラスのプロパティ名, デッキ名のプロパティ名] の組のリスト
+ * (「自分クラス / 自分デッキ」「相手クラス / 相手デッキ」などをまとめて拾える)。
+ */
+function buildDeckIndex(records, pairs) {
+  const map = new Map();
+  for (const record of records) {
+    for (const [classKey, deckKey] of pairs) {
+      const cls = record[classKey];
+      const deck = record[deckKey];
+      if (!cls || !deck) continue;
+      if (!map.has(cls)) map.set(cls, new Set());
+      map.get(cls).add(deck);
+    }
+  }
+  return map;
+}
+
+/** クラスの選択に合わせて、デッキ名の候補 (datalist) をそのクラスのものだけに絞る。 */
+function updateDeckList(deckIndex, datalistId, classSelectId) {
+  const cls = $(classSelectId).value;
+  const decks = cls ? [...(deckIndex.get(cls) || [])].sort() : [];
+  $(datalistId).replaceChildren(...decks.map((deck) => el("option", { value: deck })));
+}
+
 /** 「クラス / デッキ名」。デッキ名が無ければクラスだけ。 */
 const side = (cls, deck) => (deck ? `${cls} / ${deck}` : cls);
 
