@@ -26,6 +26,7 @@ const FILTERS = {
   "filter-until": "until",
   "filter-my_class": "my_class",
   "filter-my_deck": "my_deck",
+  "filter-opp_deck": "opp_deck",
   "filter-turn": "turn",
 };
 const FILTER_IDS = Object.keys(FILTERS);
@@ -405,6 +406,7 @@ function describeFilters() {
   if ($("filter-until").value) parts.push(`${$("filter-until").value} 以前`);
   if ($("filter-my_class").value) parts.push($("filter-my_class").value);
   if ($("filter-my_deck").value) parts.push($("filter-my_deck").value);
+  if ($("filter-opp_deck").value) parts.push($("filter-opp_deck").value);
   if ($("filter-turn").value) parts.push(TURN_LABEL[$("filter-turn").value]);
   $("filter-summary").textContent = `対象: ${parts.join(" / ")}`;
 }
@@ -415,9 +417,11 @@ function describeFilters() {
  */
 function fillDynamicOptions(records) {
   const myDecks = new Set();
+  const oppDecks = new Set();
   const events = [];
   for (const record of records) {
     if (record.my_deck) myDecks.add(record.my_deck);
+    if (record.opp_deck) oppDecks.add(record.opp_deck);
     if (record.event && !events.includes(record.event)) events.push(record.event);
   }
   events.reverse();   // 新しい大会ほど上に
@@ -430,6 +434,7 @@ function fillDynamicOptions(records) {
   $("event-list").replaceChildren(...events.map((name) => el("option", { value: name })));
   replaceOptions($("filter-event"), events, { placeholder: "すべての大会" });
   replaceOptions($("filter-my_deck"), [...myDecks].sort(), { placeholder: "すべて" });
+  replaceOptions($("filter-opp_deck"), [...oppDecks].sort(), { placeholder: "すべて" });
 }
 
 /**

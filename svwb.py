@@ -391,7 +391,7 @@ def _breakdown(records: list[dict], key: str, fallback: str = "(未設定)",
 
 def filter_records(records: list[dict], since: str = "", until: str = "",
                    my_class: str = "", my_deck: str = "", opp_class: str = "",
-                   opp_grade: str = "", mode: str = "", event: str = "",
+                   opp_deck: str = "", opp_grade: str = "", mode: str = "", event: str = "",
                    turn: str = "") -> list[dict]:
     """期間 / クラス / デッキ / 相手グレード / モード / 大会 / 先後で絞り込む。
 
@@ -414,6 +414,8 @@ def filter_records(records: list[dict], since: str = "", until: str = "",
         if my_deck and (record.get("my_deck") or "") != my_deck:
             continue
         if opp_class and record.get("opp_class") != opp_class:
+            continue
+        if opp_deck and (record.get("opp_deck") or "") != opp_deck:
             continue
         if opp_grade and (record.get("opp_grade") or "") != opp_grade:
             continue
@@ -525,7 +527,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _query_filters(self, query: dict[str, list[str]]) -> dict:
         filters = {name: (query.get(name) or [""])[0]
-                   for name in ("since", "until", "my_class", "my_deck", "opp_class",
+                   for name in ("since", "until", "my_class", "my_deck", "opp_class", "opp_deck",
                                 "opp_grade", "mode", "event", "turn")}
         # モードを指定しないときはランクマッチ。混ぜた数字を既定にしないための
         # 既定値で、両方まとめて見たいときは mode=all を明示する。
@@ -735,7 +737,7 @@ def cmd_stats(args: argparse.Namespace) -> int:
         store.list(),
         since=args.since or "", until=args.until or "",
         my_class=args.my_class or "", my_deck=args.my_deck or "",
-        opp_class=args.opp_class or "", opp_grade=args.opp_grade or "",
+        opp_class=args.opp_class or "", opp_deck=args.opp_deck or "", opp_grade=args.opp_grade or "",
         mode=args.mode or "", event=args.event or "", turn=args.turn or "",
     )
     stats = compute_stats(records, config["classes"], config["grades"])
@@ -820,6 +822,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--my-class", dest="my_class", help="自分クラスで絞り込む")
     stats.add_argument("--my-deck", dest="my_deck", help="自分デッキ名で絞り込む")
     stats.add_argument("--opp-class", dest="opp_class", help="相手クラスで絞り込む")
+    stats.add_argument("--opp-deck", dest="opp_deck", help="相手デッキ名で絞り込む")
     stats.add_argument("--opp-grade", dest="opp_grade", help="相手グレードで絞り込む (EPIC 等)")
     stats.add_argument("--turn", choices=TURNS, help="先攻 / 後攻で絞り込む")
     stats.add_argument("--mode", choices=FILTER_MODES, default=DEFAULT_MODE,

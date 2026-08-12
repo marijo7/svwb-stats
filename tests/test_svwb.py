@@ -433,6 +433,15 @@ class TestFilter(unittest.TestCase):
         self.assertEqual(len(svwb.filter_records(self.records, my_class="エルフ", my_deck="B")), 1)
         self.assertEqual(len(svwb.filter_records(self.records, opp_class="ロイヤル")), 2)
 
+    def test_opp_deck_filter(self):
+        records = [
+            make_record(opp_class="ロイヤル", opp_deck="連携ロイヤル"),
+            make_record(opp_class="ロイヤル", opp_deck="財宝ロイヤル"),
+            make_record(opp_class="エルフ", opp_deck=""),
+        ]
+        self.assertEqual(len(svwb.filter_records(records, opp_deck="連携ロイヤル")), 1)
+        self.assertEqual(len(svwb.filter_records(records)), 3)
+
     def test_opp_grade_filter(self):
         records = [
             make_record(opp_rank="Grand Master", opp_grade="EPIC"),

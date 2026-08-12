@@ -52,6 +52,7 @@ const FILTERS = {
   "filter-until": "until",
   "filter-my_class": "my_class",
   "filter-my_deck": "my_deck",
+  "filter-opp_deck": "opp_deck",
   "filter-turn": "turn",
 };
 const FILTER_IDS = Object.keys(FILTERS);
@@ -342,13 +343,13 @@ async function removeRecord(record) {
 // 読み込み
 // ---------------------------------------------------------------------------
 
-/** 絞り込み欄 (自分デッキ) の候補。入力済みの自分デッキ名を集める。 */
-function collectMyDecks(records) {
-  const mine = new Set();
+/** 絞り込み欄 (自分デッキ / 相手デッキ) の候補。入力済みのデッキ名を集める。 */
+function collectDeckNames(records, field) {
+  const names = new Set();
   for (const record of records) {
-    if (record.my_deck) mine.add(record.my_deck);
+    if (record[field]) names.add(record[field]);
   }
-  return [...mine].sort();
+  return [...names].sort();
 }
 
 function describeFilters() {
@@ -357,6 +358,7 @@ function describeFilters() {
   if ($("filter-until").value) parts.push(`${$("filter-until").value} 以前`);
   if ($("filter-my_class").value) parts.push($("filter-my_class").value);
   if ($("filter-my_deck").value) parts.push($("filter-my_deck").value);
+  if ($("filter-opp_deck").value) parts.push($("filter-opp_deck").value);
   if ($("filter-turn").value) parts.push(TURN_LABEL[$("filter-turn").value]);
   $("filter-summary").textContent = parts.length ? `適用中: ${parts.join(" / ")}` : "全期間・全クラス";
 }
@@ -365,7 +367,8 @@ function describeFilters() {
 function fillDynamicOptions(records) {
   state.deckIndex = buildDeckIndex(records, [["my_class", "my_deck"], ["opp_class", "opp_deck"]]);
   refreshDeckLists();
-  replaceOptions($("filter-my_deck"), collectMyDecks(records), { placeholder: "すべて" });
+  replaceOptions($("filter-my_deck"), collectDeckNames(records, "my_deck"), { placeholder: "すべて" });
+  replaceOptions($("filter-opp_deck"), collectDeckNames(records, "opp_deck"), { placeholder: "すべて" });
 }
 
 async function refresh() {
